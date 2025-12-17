@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { supabase } from '../lib/supabase';
-import { Search, Trash2, RotateCcw, Banknote, CreditCard, ShoppingCart, Pencil, PauseCircle, Save, History, ArrowRightLeft, Settings, Loader2, Upload, FileText, Image as ImageIcon, X, User, UserPlus, Check } from 'lucide-react';
+import { Search, Trash2, RotateCcw, Banknote, CreditCard, ShoppingCart, Pencil, PauseCircle, Save, History, ArrowRightLeft, Loader2, Upload, Image as ImageIcon, X, User, UserPlus, Check, Printer } from 'lucide-react';
 
 export default function POSPage() {
+  // --- State: สินค้า & ตะกร้า ---
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<any[]>([]); 
@@ -13,13 +13,15 @@ export default function POSPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
   
+  // --- State: ลูกค้า ---
   const [customers, setCustomers] = useState<any[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null); // null = ลูกค้าทั่วไป
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerNick, setNewCustomerNick] = useState('');
   
+  // --- State: การชำระเงิน ---
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isHeldBillsModalOpen, setIsHeldBillsModalOpen] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
@@ -28,13 +30,19 @@ export default function POSPage() {
   const [slipFile, setSlipFile] = useState<File | null>(null);
   const [slipPreview, setSlipPreview] = useState<string | null>(null);
 
+  // --- State: Note ---
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [tempNote, setTempNote] = useState('');
 
+  // ยอดรวม
   const totalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const changeAmount = Number(cashReceived) - totalAmount;
 
-  useEffect(() => { fetchProducts(); fetchCustomers(); }, []);
+  // --- 1. Load Data ---
+  useEffect(() => { 
+      fetchProducts(); 
+      fetchCustomers();
+  }, []);
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -50,24 +58,68 @@ export default function POSPage() {
     else setCustomers(data || []);
   };
 
-  const handleSelectCustomer = (customer: any) => { setSelectedCustomer(customer); setIsCustomerModalOpen(false); setCustomerSearch(''); };
+  // --- 2. Customer Logic ---
+  const handleSelectCustomer = (customer: any) => {
+      setSelectedCustomer(customer);
+      setIsCustomerModalOpen(false);
+      setCustomerSearch('');
+  };
+
   const handleAddCustomer = async () => {
       if (!newCustomerName) return alert('กรุณาใส่ชื่อลูกค้า');
-      const { data, error } = await supabase.from('customers').insert({ name: newCustomerName, nickname: newCustomerNick || newCustomerName }).select().single();
-      if (error) { alert('เพิ่มลูกค้าไม่สำเร็จ: ' + error.message); } else { setCustomers(prev => [...prev, data]); setSelectedCustomer(data); setIsCustomerModalOpen(false); setNewCustomerName(''); setNewCustomerNick(''); alert(`ยินดีต้อนรับคุณ ${data.nickname || data.name}`); }
+      const { data, error } = await supabase.from('customers').insert({
+          name: newCustomerName,
+          nickname: newCustomerNick || newCustomerName
+      }).select().single();
+
+      if (error) {
+          alert('เพิ่มลูกค้าไม่สำเร็จ: ' + error.message);
+      } else {
+          setCustomers(prev => [...prev, data]);
+          setSelectedCustomer(data);
+          setIsCustomerModalOpen(false);
+          setNewCustomerName('');
+          setNewCustomerNick('');
+          alert(`ยินดีต้อนรับคุณ ${data.nickname || data.name}`);
+      }
   };
-  const filteredCustomers = customers.filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || (c.nickname && c.nickname.toLowerCase().includes(customerSearch.toLowerCase())));
+
+  const filteredCustomers = customers.filter(c => 
+      c.name.toLowerCase().includes(customerSearch.toLowerCase()) || 
+      (c.nickname && c.nickname.toLowerCase().includes(customerSearch.toLowerCase()))
+  );
+
+  // --- 3. Cart & Search Logic ---
+  // ยิงบาร์โค้ด
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      // ค้นหาเป๊ะๆ (Barcode match)
+      const exactMatch = products.find(p => 
+        p.barcode === searchTerm || 
+        p.name === searchTerm || 
+        (p.short_code && p.short_code === searchTerm)
+      );
+
+      if (exactMatch) {
+        handleProductClick(exactMatch);
+        setSearchTerm('');
+      }
+    }
+  };
 
   const handleProductClick = (product: any) => {
     if (product.stock <= 0) {
         if (product.type === 'sub') {
             const parent = products.find(p => p.id === product.parent_id);
-            if (parent && confirm(`ของหมด! \nต้องการเบิก "${parent.name}" \nมาแบ่งขายเป็น "${product.name}" ไหม?`)) { performQuickSplit(parent, product); }
+            if (parent && confirm(`ของหมด! \nต้องการเบิก "${parent.name}" \nมาแบ่งขายเป็น "${product.name}" ไหม?`)) {
+                performQuickSplit(parent, product);
+            }
         } else { alert('สินค้าหมด! กรุณาเติมของที่หน้าสต็อก'); }
         return;
     }
     addToCart(product);
   };
+
   const performQuickSplit = async (parent: any, child: any) => {
      if (parent.stock <= 0) return alert(`ทำรายการไม่ได้! "${parent.name}" ก็หมดเหมือนกัน`);
      const updateParent = supabase.from('products').update({ stock: parent.stock - 1 }).eq('id', parent.id);
@@ -77,6 +129,7 @@ export default function POSPage() {
      alert(`เบิกเรียบร้อย! ได้เพิ่มมา ${quantityGained} ${child.unit}`);
      fetchProducts();
   };
+
   const addToCart = (product: any) => {
     const currentInCart = cart.find(item => item.id === product.id)?.quantity || 0;
     if (currentInCart + 1 > product.stock) { alert('หยิบเกินจำนวนที่มีในสต็อก!'); return; }
@@ -86,15 +139,25 @@ export default function POSPage() {
       return [...prev, { ...product, quantity: 1, note: '' }];
     });
   };
+
   const updateQuantity = (productId: string, newQty: number) => {
     if (newQty <= 0) { removeFromCart(productId); return; }
     const product = products.find(p => p.id === productId);
     if (product && newQty > product.stock) { alert('ของไม่พอ!'); return; }
     setCart((prev) => prev.map((item) => (item.id === productId ? { ...item, quantity: newQty } : item)));
   };
+
   const removeFromCart = (productId: string) => { setCart((prev) => prev.filter((item) => item.id !== productId)); };
 
-  const handleSlipChange = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files && e.target.files[0]) { const file = e.target.files[0]; setSlipFile(file); setSlipPreview(URL.createObjectURL(file)); } };
+  // --- 4. Payment Logic ---
+  const handleSlipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSlipFile(file);
+      setSlipPreview(URL.createObjectURL(file));
+    }
+  };
+
   const confirmPayment = async () => {
     setProcessingPayment(true);
     try {
@@ -107,36 +170,130 @@ export default function POSPage() {
            const { data } = supabase.storage.from('slips').getPublicUrl(fileName);
            slipUrl = data.publicUrl;
         }
-        const { data: orderData, error: orderError } = await supabase.from('orders').insert({ customer_id: selectedCustomer?.id || null, total_amount: totalAmount, payment_method: paymentMethod, cash_received: paymentMethod === 'cash' ? Number(cashReceived) : 0, change_amount: paymentMethod === 'cash' ? changeAmount : 0, slip_image: slipUrl }).select().single();
+
+        const { data: orderData, error: orderError } = await supabase
+            .from('orders')
+            .insert({
+                customer_id: selectedCustomer?.id || null,
+                total_amount: totalAmount,
+                payment_method: paymentMethod,
+                cash_received: paymentMethod === 'cash' ? Number(cashReceived) : 0,
+                change_amount: paymentMethod === 'cash' ? changeAmount : 0,
+                slip_image: slipUrl
+            })
+            .select().single();
+
         if (orderError) throw new Error(orderError.message);
         const orderId = orderData.id;
-        const orderItemsData = cart.map(item => ({ order_id: orderId, product_id: item.id, product_name: item.name, quantity: item.quantity, price: item.price, cost: item.cost || 0 }));
+
+        const orderItemsData = cart.map(item => ({
+            order_id: orderId,
+            product_id: item.id,
+            product_name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            cost: item.cost || 0
+        }));
+
         const { error: itemsError } = await supabase.from('order_items').insert(orderItemsData);
         if (itemsError) throw new Error(itemsError.message);
-        for (const item of cart) { const currentProduct = products.find(p => p.id === item.id); if (currentProduct) { const newStock = currentProduct.stock - item.quantity; await supabase.from('products').update({ stock: newStock }).eq('id', item.id); } }
-        alert(`✅ บันทึกเรียบร้อย! ขอบคุณคุณ ${selectedCustomer?.nickname || selectedCustomer?.name || 'ลูกค้า'}`);
-        setCart([]); setIsPaymentModalOpen(false); setCashReceived(''); setSlipFile(null); setSlipPreview(null); setSelectedCustomer(null); fetchProducts(); 
-    } catch (error: any) { alert('❌ เกิดข้อผิดพลาด: ' + error.message); } finally { setProcessingPayment(false); }
+
+        // ตัดสต็อก
+        for (const item of cart) {
+            const currentProduct = products.find(p => p.id === item.id);
+            if (currentProduct) {
+                const newStock = currentProduct.stock - item.quantity;
+                await supabase.from('products').update({ stock: newStock }).eq('id', item.id);
+            }
+        }
+
+        alert(`✅ บันทึกเรียบร้อย!`);
+        setCart([]);
+        setIsPaymentModalOpen(false);
+        setCashReceived('');
+        setSlipFile(null);
+        setSlipPreview(null);
+        setSelectedCustomer(null);
+        fetchProducts(); 
+
+    } catch (error: any) {
+        alert('❌ เกิดข้อผิดพลาด: ' + error.message);
+    } finally {
+        setProcessingPayment(false);
+    }
   };
 
+  // ปริ้นใบเสร็จ (CSS ซ่อนใน globals.css)
+  const handlePrint = () => {
+    window.print();
+  };
+
+  // --- Helpers ---
   const startEditingNote = (item: any) => { setEditingNoteId(item.id); setTempNote(item.note || ''); };
   const saveNote = (productId: string) => { setCart((prev) => prev.map((item) => (item.id === productId ? { ...item, note: tempNote } : item))); setEditingNoteId(null); };
-  const holdBill = () => { if (cart.length === 0) return; setHeldBills([...heldBills, { id: Date.now(), items: cart, customer: selectedCustomer, total: totalAmount, time: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) }]); setCart([]); setSelectedCustomer(null); };
-  const restoreBill = (index: number) => { const billToRestore = heldBills[index]; if (cart.length > 0 && !confirm('เคลียร์หน้าจอเพื่อเรียกบิลเก่า?')) return; setCart(billToRestore.items); setSelectedCustomer(billToRestore.customer); setHeldBills(heldBills.filter((_, i) => i !== index)); setIsHeldBillsModalOpen(false); };
-  const filteredProducts = products.filter((p) => { const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || (p.formula && p.formula.includes(searchTerm)); const matchCategory = selectedCategory === 'ทั้งหมด' || p.category === selectedCategory; return matchSearch && matchCategory; });
+  
+  const holdBill = () => { 
+      if (cart.length === 0) return; 
+      setHeldBills([...heldBills, { 
+          id: Date.now(), 
+          items: cart, 
+          customer: selectedCustomer, 
+          total: totalAmount, 
+          time: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) 
+      }]); 
+      setCart([]); 
+      setSelectedCustomer(null);
+  };
+  
+  const restoreBill = (index: number) => { 
+      const billToRestore = heldBills[index]; 
+      if (cart.length > 0 && !confirm('เคลียร์หน้าจอเพื่อเรียกบิลเก่า?')) return; 
+      setCart(billToRestore.items); 
+      setSelectedCustomer(billToRestore.customer); 
+      setHeldBills(heldBills.filter((_, i) => i !== index)); 
+      setIsHeldBillsModalOpen(false); 
+  };
+  
+  const filteredProducts = products.filter((p) => {
+    const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                       (p.formula && p.formula.includes(searchTerm)) ||
+                       (p.barcode && p.barcode === searchTerm); // รองรับบาร์โค้ดตอนพิมพ์ค้นหา
+    const matchCategory = selectedCategory === 'ทั้งหมด' || p.category === selectedCategory;
+    return matchSearch && matchCategory;
+  });
 
   return (
-    // [RESPONSIVE] เปลี่ยน flex-row เป็น flex-col บนมือถือ, lg:flex-row บนจอใหญ่
     <div className="flex flex-col lg:flex-row h-screen bg-gray-100 overflow-hidden font-sans">
       
+      {/* --- ส่วนใบเสร็จสำหรับปริ้น (ซ่อนในหน้าจอปกติ) --- */}
+      <div id="printable-receipt" className="hidden print:block p-2">
+          <div className="text-center font-bold text-xl mb-2">ร้านปุ๋ยการเกษตร</div>
+          <hr className="border-black mb-2"/>
+          <div className="text-sm">
+             {cart.map((item, i) => (
+                <div key={i} className="flex justify-between mb-1">
+                   <span>{item.name} x{item.quantity}</span>
+                   <span>{(item.price * item.quantity).toLocaleString()}</span>
+                </div>
+             ))}
+          </div>
+          <hr className="border-black my-2"/>
+          <div className="flex justify-between font-bold text-lg">
+             <span>รวมสุทธิ</span>
+             <span>{totalAmount.toLocaleString()}</span>
+          </div>
+          <div className="text-center text-xs mt-4">ขอบคุณที่อุดหนุนครับ</div>
+      </div>
+
       {/* --- Section 1: Cart (ตะกร้า) --- */}
-      {/* [RESPONSIVE] ความสูง: มือถือ 40%, จอใหญ่เต็มจอ / ความกว้าง: มือถือเต็ม, จอใหญ่ 2/5 */}
       <div className="w-full lg:w-2/5 h-[40vh] lg:h-full bg-white flex flex-col border-r shadow-xl z-10 order-1 lg:order-none">
+        {/* Header ตะกร้า */}
         <div className="p-3 lg:p-4 bg-blue-900 text-white shadow-md flex justify-between items-center">
           <h1 className="text-xl lg:text-2xl font-bold flex items-center gap-2"><ShoppingCart className="w-6 h-6 lg:w-8 lg:h-8" /> รายการขาย</h1>
           <p className="text-blue-200 text-xs lg:text-sm">{new Date().toLocaleDateString('th-TH')}</p>
         </div>
 
+        {/* แถบเลือกลูกค้า */}
         <div className="bg-orange-50 border-b border-orange-100 p-2 lg:p-3 flex justify-between items-center">
             <div className="flex items-center gap-2 lg:gap-3">
                 <div className="bg-orange-100 p-1 lg:p-2 rounded-full text-orange-600"><User size={20} /></div>
@@ -150,9 +307,10 @@ export default function POSPage() {
             <button onClick={() => setIsCustomerModalOpen(true)} className="bg-white border-2 border-orange-200 text-orange-600 px-3 py-1 lg:px-4 lg:py-2 rounded-lg font-bold text-xs lg:text-sm hover:bg-orange-100 transition">เปลี่ยน</button>
         </div>
 
+        {/* List Items */}
         <div className="flex-1 overflow-y-auto p-2 lg:p-4 space-y-2">
           {cart.length === 0 ? (
-            <div className="text-center text-gray-400 mt-10 lg:mt-20 text-lg lg:text-xl flex flex-col items-center gap-4"><ShoppingCart size={48} className="opacity-20" /><span>เลือกสินค้าจากด้านล่าง/ขวา</span></div>
+            <div className="text-center text-gray-400 mt-10 lg:mt-20 text-lg lg:text-xl flex flex-col items-center gap-4"><ShoppingCart size={48} className="opacity-20" /><span>ยิงบาร์โค้ด หรือเลือกสินค้า</span></div>
           ) : (
             cart.map((item, index) => (
               <div key={item.id} className="bg-blue-50 p-2 lg:p-3 rounded-lg border border-blue-100 relative">
@@ -177,6 +335,7 @@ export default function POSPage() {
           )}
         </div>
 
+        {/* Footer */}
         <div className="p-3 lg:p-4 bg-gray-50 border-t-2 border-gray-200">
           <div className="flex justify-between items-end mb-2 lg:mb-4"><span className="text-gray-600 text-lg lg:text-xl">ยอดรวม</span><span className="text-3xl lg:text-5xl font-bold text-blue-700">{totalAmount.toLocaleString()}</span></div>
           <div className="grid grid-cols-3 gap-2 lg:gap-3 mb-2 lg:mb-3">
@@ -189,15 +348,22 @@ export default function POSPage() {
       </div>
 
       {/* --- Section 2: Shelf (ชั้นวาง) --- */}
-      {/* [RESPONSIVE] ความสูง: มือถือ 60%, จอใหญ่เต็มจอ / ความกว้าง: มือถือเต็ม, จอใหญ่ 3/5 */}
       <div className="w-full lg:w-3/5 h-[60vh] lg:h-full p-3 lg:p-6 flex flex-col bg-gray-100 order-2 lg:order-none">
+        
+        {/* Header ค้นหา (แบบคลีน ลบปุ่มอื่นๆ ออกหมดแล้ว) */}
         <div className="mb-3 lg:mb-6 flex gap-2 lg:gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <input type="text" placeholder="ค้นหา..." className="w-full pl-10 pr-4 py-2 lg:py-4 text-lg lg:text-2xl border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none shadow-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <input 
+                type="text" 
+                placeholder="ยิงบาร์โค้ด หรือ ค้นหาชื่อ/สูตร..." 
+                className="w-full pl-10 pr-4 py-2 lg:py-4 text-lg lg:text-2xl border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none shadow-sm" 
+                value={searchTerm} 
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={handleSearchKeyDown} // รองรับการยิงบาร์โค้ด
+                autoFocus
+            />
           </div>
-          <Link href="/report" className="flex flex-col items-center justify-center bg-white border-2 border-gray-200 text-gray-600 px-3 lg:px-4 rounded-xl hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition"><FileText size={20} className="lg:w-6 lg:h-6" /> <span className="text-[10px] lg:text-xs font-bold">รายงาน</span></Link>
-          <Link href="/stock" className="flex flex-col items-center justify-center bg-white border-2 border-gray-200 text-gray-600 px-3 lg:px-4 rounded-xl hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition"><Settings size={20} className="lg:w-6 lg:h-6" /> <span className="text-[10px] lg:text-xs font-bold">สต็อก</span></Link>
         </div>
 
         <div className="flex gap-2 mb-2 lg:mb-4 overflow-x-auto pb-2 scrollbar-hide">
@@ -208,7 +374,6 @@ export default function POSPage() {
 
         <div className="flex-1 overflow-y-auto pr-1 lg:pr-2 pb-20">
           {loading ? ( <div className="flex items-center justify-center h-40 text-blue-600 text-xl font-bold gap-3"><Loader2 className="animate-spin" size={32}/> กำลังโหลดสินค้า...</div> ) : (
-            // [RESPONSIVE] Grid: มือถือ 2 คอลัมน์, จอใหญ่ 3 คอลัมน์
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2 lg:gap-4">
               {filteredProducts.map((product) => (
                 <div key={product.id} onClick={() => handleProductClick(product)} className={`bg-white rounded-xl lg:rounded-2xl shadow-md border-2 transition cursor-pointer active:scale-95 flex flex-col overflow-hidden h-56 lg:h-72 group ${product.stock <= 0 ? 'border-red-300 opacity-80' : 'border-transparent hover:border-blue-500 hover:shadow-xl'}`}>
@@ -229,20 +394,12 @@ export default function POSPage() {
         </div>
       </div>
 
-      {/* --- Modals (ปรับให้ width responsive) --- */}
+      {/* --- Modals --- */}
       {isCustomerModalOpen && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
-                  <div className="bg-orange-100 p-4 flex justify-between items-center border-b border-orange-200">
-                      <h2 className="text-xl font-bold text-orange-800 flex items-center gap-2"><User /> เลือกลูกค้า</h2>
-                      <button onClick={() => setIsCustomerModalOpen(false)} className="text-orange-800 hover:bg-orange-200 rounded-full p-1"><X /></button>
-                  </div>
-                  <div className="p-4 border-b">
-                      <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20}/>
-                          <input type="text" placeholder="ค้นหาชื่อเล่น หรือ ชื่อจริง..." className="w-full pl-10 pr-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-orange-400" autoFocus value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} />
-                      </div>
-                  </div>
+                  <div className="bg-orange-100 p-4 flex justify-between items-center border-b border-orange-200"><h2 className="text-xl font-bold text-orange-800 flex items-center gap-2"><User /> เลือกลูกค้า</h2><button onClick={() => setIsCustomerModalOpen(false)} className="text-orange-800 hover:bg-orange-200 rounded-full p-1"><X /></button></div>
+                  <div className="p-4 border-b"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20}/><input type="text" placeholder="ค้นหาชื่อเล่น หรือ ชื่อจริง..." className="w-full pl-10 pr-4 py-3 border rounded-xl outline-none focus:ring-2 focus:ring-orange-400" autoFocus value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} /></div></div>
                   <div className="flex-1 overflow-y-auto p-2">
                       <div onClick={() => handleSelectCustomer(null)} className={`p-3 rounded-xl cursor-pointer flex items-center justify-between mb-2 border-2 ${!selectedCustomer ? 'border-orange-500 bg-orange-50' : 'border-transparent hover:bg-gray-100'}`}><div className="font-bold">ลูกค้าทั่วไป (ไม่ระบุ)</div>{!selectedCustomer && <Check className="text-orange-500"/>}</div>
                       {filteredCustomers.map(cust => (
@@ -303,8 +460,9 @@ export default function POSPage() {
               )}
             </div>
             <div className="p-4 bg-gray-50 border-t flex justify-end gap-3 lg:gap-4 shrink-0">
-              <button onClick={() => setIsPaymentModalOpen(false)} className="px-6 py-3 lg:px-8 lg:py-4 rounded-xl text-lg lg:text-xl font-bold text-gray-600 hover:bg-gray-200 transition">กลับไปแก้ไข</button>
-              <button onClick={confirmPayment} disabled={(paymentMethod === 'cash' && changeAmount < 0) || processingPayment} className="px-6 py-3 lg:px-10 lg:py-4 rounded-xl text-lg lg:text-xl font-bold text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 shadow-lg hover:shadow-xl transition transform active:scale-95 flex items-center gap-2">{processingPayment ? <Loader2 className="animate-spin"/> : 'ยืนยันการชำระ'}</button>
+              <button onClick={handlePrint} className="px-6 py-3 lg:px-8 lg:py-4 rounded-xl text-lg lg:text-xl font-bold text-gray-600 hover:bg-gray-200 transition flex items-center gap-2"><Printer/> พิมพ์</button>
+              <button onClick={() => setIsPaymentModalOpen(false)} className="px-6 py-3 lg:px-8 lg:py-4 rounded-xl text-lg lg:text-xl font-bold text-gray-600 hover:bg-gray-200 transition">แก้ไข</button>
+              <button onClick={confirmPayment} disabled={(paymentMethod === 'cash' && changeAmount < 0) || processingPayment} className="px-6 py-3 lg:px-10 lg:py-4 rounded-xl text-lg lg:text-xl font-bold text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 shadow-lg hover:shadow-xl transition transform active:scale-95 flex items-center gap-2">{processingPayment ? <Loader2 className="animate-spin"/> : 'ยืนยัน'}</button>
             </div>
           </div>
         </div>
