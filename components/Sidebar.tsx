@@ -3,76 +3,49 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ShoppingCart, Package, Users, BarChart3, ArrowRightLeft } from 'lucide-react';
+import { ShoppingCart, Package, TrendingUp, History, ArrowRightLeft, Settings, LogOut } from 'lucide-react';
 
 export default function Sidebar() {
   const pathname = usePathname();
 
-  // รายการเมนูทั้งหมด
   const menuItems = [
-    { name: 'ขายหน้าร้าน', path: '/', icon: ShoppingCart },
-    { name: 'สต็อกสินค้า', path: '/stock', icon: Package },
-    { name: 'โอนของ/สาขา', path: '/transfer', icon: ArrowRightLeft }, // เมนูใหม่
-    { name: 'ลูกค้า', path: '/customers', icon: Users }, // เมนูใหม่
-    { name: 'สรุปยอด', path: '/dashboard', icon: BarChart3 }, // เปลี่ยนจาก Report เป็น Dashboard
+    { name: 'ขายหน้าร้าน', href: '/', icon: <ShoppingCart size={20} /> },
+    { name: 'คลังสินค้า', href: '/stock', icon: <Package size={20} /> },
+    { name: 'ประวัติบิล', href: '/orders', icon: <History size={20} /> },
+    { name: 'โอนย้าย', href: '/transfer', icon: <ArrowRightLeft size={20} /> },
+    { name: 'ภาพรวม', href: '/dashboard', icon: <TrendingUp size={20} /> },
+    { name: 'ตั้งค่า', href: '/settings', icon: <Settings size={29} /> },
   ];
 
+  // ซ่อน Sidebar เวลาพิมพ์ใบเสร็จ
   return (
-    <>
-      {/* --- Sidebar สำหรับจอใหญ่ (Desktop/Tablet) --- */}
-      <div className="hidden lg:flex flex-col w-64 bg-white border-r h-screen fixed left-0 top-0 z-50 shadow-lg">
-        {/* Logo ร้าน */}
-        <div className="p-6 border-b flex items-center justify-center bg-blue-900 text-white">
-          <div className="text-2xl font-black">ร้านปุ๋ย💰</div>
-        </div>
-
-        {/* รายการเมนู */}
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {menuItems.map((item) => {
-            const isActive = pathname === item.path;
-            return (
-              <Link 
-                key={item.path} 
-                href={item.path}
-                className={`flex items-center gap-4 px-4 py-4 rounded-xl transition-all duration-200 group ${
-                  isActive 
-                    ? 'bg-blue-600 text-white shadow-md scale-105' 
-                    : 'text-gray-600 hover:bg-blue-50 hover:text-blue-600'
-                }`}
-              >
-                <item.icon size={28} strokeWidth={isActive ? 3 : 2} />
-                <span className={`text-lg font-bold ${isActive ? 'text-white' : ''}`}>
-                  {item.name}
-                </span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Footer ด้านล่าง */}
-        <div className="p-4 border-t text-center text-gray-400 text-xs">
-          ระบบ POS ร้านปุ๋ย v1.0
-        </div>
+    <div className="hidden lg:flex flex-col w-64 bg-slate-900 h-screen text-white fixed left-0 top-0 print:hidden z-50">
+      <div className="p-6 text-center border-b border-slate-700">
+        <h1 className="text-2xl font-black text-yellow-400 tracking-wider">POS SYSTEM</h1>
+        <p className="text-xs text-slate-400 mt-1">Version 1.0.0</p>
       </div>
-
-      {/* --- Bottom Bar สำหรับมือถือ (Mobile) --- */}
-      <div className="lg:hidden fixed bottom-0 left-0 w-full bg-white border-t z-50 flex justify-around p-2 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+      
+      <nav className="flex-1 p-4 space-y-2">
         {menuItems.map((item) => {
-          const isActive = pathname === item.path;
+          const isActive = pathname === item.href;
           return (
             <Link 
-              key={item.path} 
-              href={item.path}
-              className={`flex flex-col items-center justify-center p-2 rounded-lg w-full ${
-                isActive ? 'text-blue-600 bg-blue-50' : 'text-gray-400'
-              }`}
+              key={item.href} 
+              href={item.href}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition duration-200 ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50 font-bold' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
             >
-              <item.icon size={24} strokeWidth={isActive ? 3 : 2} />
-              <span className="text-[10px] font-bold mt-1">{item.name}</span>
+              {item.icon}
+              <span>{item.name}</span>
             </Link>
           );
         })}
+      </nav>
+
+      <div className="p-4 border-t border-slate-700">
+        <button className="flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-slate-800 w-full rounded-xl transition">
+            <LogOut size={20}/> ออกจากระบบ
+        </button>
       </div>
-    </>
+    </div>
   );
 }

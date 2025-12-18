@@ -39,6 +39,20 @@ export default function POSPage() {
   const totalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const changeAmount = Number(cashReceived) - totalAmount;
 
+  // app/page.tsx (เพิ่มใน POSPage)
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // กด / เพื่อโฟกัสช่องค้นหา
+            if (e.key === '/' && document.activeElement?.tagName !== 'INPUT') {
+                e.preventDefault();
+                document.querySelector<HTMLInputElement>('input[placeholder*="ค้นหา"]')?.focus();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
   // --- 1. Load Data ---
   useEffect(() => { 
       fetchProducts(); 

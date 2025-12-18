@@ -25,33 +25,41 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* app/globals.css */
-
+/* --- ส่วนสำคัญ: ตั้งค่าสำหรับเครื่องพิมพ์ 80mm --- */
 @media print {
-  /* ซ่อนทุกอย่างใน Body */
-  body * {
-    visibility: hidden;
+  @page {
+    margin: 0;        /* ลบขอบขาวของ Browser */
+    size: auto;       /* ให้ Driver จัดการขนาดกระดาษเอง */
   }
 
-  /* แสดงเฉพาะส่วนใบเสร็จ */
+  body * {
+    visibility: hidden; /* ซ่อนทุกอย่างในเว็บ */
+    height: 0;
+    overflow: hidden;
+  }
+
+  /* แสดงเฉพาะ ID ที่เราต้องการพิมพ์ */
   #printable-receipt,
   #printable-receipt * {
     visibility: visible;
+    height: auto;
+    overflow: visible;
   }
 
-  /* จัดตำแหน่งใบเสร็จให้อยู่มุมซ้ายบน */
   #printable-receipt {
     position: absolute;
     left: 0;
     top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 10px; /* เว้นขอบนิดหน่อย */
-    color: black;  /* บังคับตัวอักษรสีดำ */
+    width: 78mm;      /* ตั้งเผื่อขอบไว้หน่อย (มาตรฐาน 80mm พิมพ์จริงได้ประมาณ 72-78mm) */
+    padding: 4px;
     background: white;
+    color: black;
+    font-family: 'Courier New', Courier, monospace; /* ฟอนต์คล้ายใบเสร็จจริง */
+    font-size: 12px;
+    line-height: 1.2;
   }
-
-  /* ซ่อน Scrollbar */
+  
+  /* ซ่อน Scrollbar เวลาพิมพ์ */
   ::-webkit-scrollbar {
     display: none;
   }
