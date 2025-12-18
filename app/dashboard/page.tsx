@@ -1,263 +1,249 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
-import {
-   BarChart3, TrendingUp, DollarSign, ShoppingBag,
-   Share2, Loader2, Calendar, Search, FileText, X, Printer, User
-} from 'lucide-react';
-import {
-   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
-} from 'recharts';
+import Link from 'next/link';
+import { supabase, CURRENT_BRANCH_ID } from '@/lib/supabase';
+import { ArrowLeft, TrendingUp, DollarSign, Wallet, CreditCard, ShoppingBag, PieChart } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
 
 export default function DashboardPage() {
-   const [loading, setLoading] = useState(true);
-   const [orders, setOrders] = useState<any[]>([]); // เก็บรายการบิลทั้งหมด
-   const [stats, setStats] = useState({ totalSales: 0, totalProfit: 0, totalOrders: 0, cash: 0, transfer: 0 });
-   const [chartData, setChartData] = useState<any[]>([]);
-   const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    todaySales: 0,
+    todayProfit: 0,
+    todayCash: 0,
+    todayTransfer: 0,
+    todayOrders: 0,
+    monthSales: 0
+  });
+  const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<any[]>([]);
 
-   // ส่วนค้นหาและใบเสร็จ
-   const [searchTerm, setSearchTerm] = useState('');
-   const [selectedOrder, setSelectedOrder] = useState<any>(null); // สำหรับ Modal ใบเสร็จ
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
 
-   useEffect(() => {
-      fetchDashboardData();
-   }, []);
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    const today = new Date();
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
 
-   const fetchDashboardData = async () => {
-      setLoading(true);
-
-      // ดึงข้อมูล 30 วันย้อนหลัง + ข้อมูลลูกค้า
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-      const { data: ordersData, error } = await supabase
-         .from('orders')
-         .select(`
+    // 1. ดึงข้อมูลออเดอร์ "วันนี้" พร้อมรายการสินค้า (เพื่อคำนวณกำไร)
+    const { data: todayData } = await supabase
+      .from('orders')
+      .select(`
         *,
-        customers (name, nickname),
-        order_items (product_name, quantity, price, cost)
+        order_items (
+          price,
+          cost,
+          quantity
+        )
       `)
-         .gte('created_at', thirtyDaysAgo.toISOString())
-         .order('created_at', { ascending: false }); // ใหม่สุดขึ้นก่อน
+      .eq('branch_id', CURRENT_BRANCH_ID)
+      .eq('status', 'COMPLETED') // เอาเฉพาะบิลที่สำเร็จ
+      .gte('created_at', startOfDay);
 
-      if (error || !ordersData) {
-         console.error('Error:', error);
-         setLoading(false);
-         return;
-      }
+    // --- คำนวณยอดวันนี้ ---
+    let sales = 0;
+    let cost = 0;
+    let cash = 0;
+    let transfer = 0;
 
-      setOrders(ordersData); // เก็บไว้โชว์ในตาราง
+    todayData?.forEach((order: any) => {
+        const orderTotal = Number(order.grand_total) || 0;
+        sales += orderTotal;
 
-      // --- คำนวณ Stats & Graph ---
-      let tSales = 0, tProfit = 0, tCash = 0, tTransfer = 0;
-      const salesByDate: Record<string, number> = {};
-      const productRanking: Record<string, number> = {};
+        // แยกประเภทการจ่าย
+        if (order.payment_method === 'cash') {
+            cash += orderTotal;
+        } else {
+            transfer += orderTotal;
+        }
 
-      ordersData.forEach(order => {
-         tSales += order.total_amount;
-         if (order.payment_method === 'cash') tCash += order.total_amount; else tTransfer += order.total_amount;
+        // คำนวณต้นทุน (Sum cost ของทุก item ในบิลนี้)
+        const orderCost = order.order_items?.reduce((sum: number, item: any) => {
+            return sum + (Number(item.cost) * Number(item.quantity));
+        }, 0) || 0;
+        
+        cost += orderCost;
+    });
 
-         order.order_items.forEach((item: any) => {
-            tProfit += (item.price - (item.cost || 0)) * item.quantity;
-            productRanking[item.product_name] = (productRanking[item.product_name] || 0) + item.quantity;
-         });
+    const profit = sales - cost; // กำไรขั้นต้น (Gross Profit)
 
-         const dateKey = new Date(order.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
-         salesByDate[dateKey] = (salesByDate[dateKey] || 0) + order.total_amount;
-      });
+    // 2. ดึงยอดขาย "เดือนนี้" (เฉพาะยอดรวม)
+    const { data: monthData } = await supabase
+      .from('orders')
+      .select('grand_total')
+      .eq('branch_id', CURRENT_BRANCH_ID)
+      .eq('status', 'COMPLETED')
+      .gte('created_at', startOfMonth);
 
-      setStats({ totalSales: tSales, totalProfit: tProfit, totalOrders: ordersData.length, cash: tCash, transfer: tTransfer });
+    const monthSales = monthData?.reduce((sum, o) => sum + (Number(o.grand_total) || 0), 0) || 0;
 
-      // เตรียมข้อมูลกราฟ (ต้องเรียงวันที่ใหม่ เพราะเราดึงมาแบบ DESC)
-      const sortedDates = Object.keys(salesByDate).reverse();
-      setChartData(sortedDates.map(date => ({ name: date, ยอดขาย: salesByDate[date] })));
+    setStats({
+      todaySales: sales,
+      todayProfit: profit,
+      todayCash: cash,
+      todayTransfer: transfer,
+      todayOrders: todayData?.length || 0,
+      monthSales: monthSales
+    });
 
-      setTopProducts(Object.keys(productRanking).map(key => ({ name: key, qty: productRanking[key] })).sort((a, b) => b.qty - a.qty).slice(0, 5));
-      setLoading(false);
-   };
+    // 3. ดึงบิลล่าสุด
+    const { data: recent } = await supabase
+      .from('orders')
+      .select('*, customers(name, nickname)')
+      .eq('branch_id', CURRENT_BRANCH_ID)
+      .order('created_at', { ascending: false })
+      .limit(5);
+    
+    setRecentOrders(recent || []);
 
-   // กรองบิล (ค้นหาตามเลขบิล หรือ ชื่อลูกค้า)
-   const filteredOrders = orders.filter(o =>
-      o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (o.customers && (o.customers.name.includes(searchTerm) || o.customers.nickname.includes(searchTerm)))
-   );
+    // 4. กราฟ 7 วันย้อนหลัง
+    const dataPoints = [];
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        const dayName = d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric' });
+        
+        const start = new Date(dateStr).toISOString();
+        const end = new Date(new Date(dateStr).getTime() + 86400000).toISOString();
+        
+        // Query ยอดขายรายวัน (แบบง่าย)
+        const { data: dayOrders } = await supabase
+            .from('orders')
+            .select('grand_total')
+            .eq('branch_id', CURRENT_BRANCH_ID)
+            .eq('status', 'COMPLETED')
+            .gte('created_at', start)
+            .lt('created_at', end);
+            
+        const total = dayOrders?.reduce((sum, o) => sum + Number(o.grand_total), 0) || 0;
+        dataPoints.push({ name: dayName, sales: total });
+    }
+    setChartData(dataPoints);
+    setLoading(false);
+  };
 
-   // ฟังก์ชันต่างๆ
-   const handlePrint = () => window.print();
-   const sendReportLine = () => { /* ... (โค้ดเดิม) ... */ };
-   const handleSendSlipLine = () => {
-      if (!selectedOrder) return;
-      let msg = `🧾 ใบเสร็จ: ร้านปุ๋ยการเกษตร\n📅 ${new Date(selectedOrder.created_at).toLocaleString('th-TH')}\nยอดรวม: ${selectedOrder.total_amount.toLocaleString()} บาท\nขอบคุณครับ`;
-      window.open(`https://line.me/R/msg/text/?${encodeURIComponent(msg)}`, '_blank');
-   };
-
-   if (loading) return <div className="flex h-screen items-center justify-center text-blue-600 text-xl font-bold"><Loader2 className="animate-spin mr-2" /> กำลังประมวลผล...</div>;
-
-   return (
-      <div className="min-h-screen bg-gray-100 p-4 lg:p-8 font-sans pb-24 lg:pb-8">
-
-         {/* ส่วนใบเสร็จสำหรับปริ้น (ซ่อนไว้) */}
-         {selectedOrder && (
-            <div id="printable-receipt" className="hidden print:block p-2">
-               <div className="text-center font-bold text-xl mb-2">ร้านปุ๋ยการเกษตร</div>
-               <div className="text-sm text-center mb-2">บิลเลขที่: #{selectedOrder.id.slice(0, 8)}</div>
-               <hr className="border-black mb-2" />
-               <div className="text-sm">
-                  {selectedOrder.order_items.map((item: any, i: number) => (
-                     <div key={i} className="flex justify-between mb-1">
-                        <span>{item.product_name} x{item.quantity}</span>
-                        <span>{(item.price * item.quantity).toLocaleString()}</span>
-                     </div>
-                  ))}
-               </div>
-               <hr className="border-black my-2" />
-               <div className="flex justify-between font-bold text-lg">
-                  <span>รวมสุทธิ</span><span>{selectedOrder.total_amount.toLocaleString()}</span>
-               </div>
-               <div className="text-center text-xs mt-4">ขอบคุณครับ</div>
-            </div>
-         )}
-
-         {/* Header */}
-         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-4">
-            <div>
-               <h1 className="text-3xl font-black text-gray-800 flex items-center gap-2">
-                  <BarChart3 size={36} className="text-blue-600" /> แดชบอร์ด & ประวัติ
-               </h1>
-               <p className="text-gray-500">ภาพรวม 30 วันล่าสุด</p>
-            </div>
-            <button onClick={() => { }} className="bg-[#06C755] hover:bg-[#05b64d] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-md">
-               <Share2 /> สรุปยอดเข้า LINE
-            </button>
+  return (
+    <div className="min-h-screen bg-gray-100 p-4 lg:p-6 font-sans">
+      
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6 lg:mb-8 bg-white p-4 rounded-2xl shadow-sm">
+         <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-xl hover:bg-gray-200 transition border">
+               <ArrowLeft size={20} /> <span className="font-bold">กลับหน้าร้าน</span>
+            </Link>
+            <h1 className="text-2xl font-black text-gray-800 flex items-center gap-2">
+               <TrendingUp className="text-blue-600" /> ภาพรวมร้าน (Dashboard)
+            </h1>
          </div>
-
-         {/* 1. Cards สรุปยอด */}
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-blue-500">
-               <p className="text-gray-500 text-sm font-bold">ยอดขายรวม</p>
-               <h3 className="text-3xl font-black text-gray-800 mt-1">{stats.totalSales.toLocaleString()}</h3>
-            </div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-purple-500">
-               <p className="text-gray-500 text-sm font-bold">กำไรขั้นต้น</p>
-               <h3 className="text-3xl font-black text-purple-700 mt-1">+{stats.totalProfit.toLocaleString()}</h3>
-            </div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-green-500">
-               <p className="text-gray-500 text-sm font-bold">เงินสด</p>
-               <h3 className="text-3xl font-black text-gray-800 mt-1">{stats.cash.toLocaleString()}</h3>
-            </div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-blue-400">
-               <p className="text-gray-500 text-sm font-bold">เงินโอน</p>
-               <h3 className="text-3xl font-black text-gray-800 mt-1">{stats.transfer.toLocaleString()}</h3>
-            </div>
+         <div className="text-right">
+             <div className="text-xs text-gray-400">ข้อมูล ณ วันที่</div>
+             <div className="font-bold text-gray-700">{new Date().toLocaleDateString('th-TH', { dateStyle: 'long'})}</div>
          </div>
+      </div>
 
-         {/* 2. กราฟ + Top 5 */}
-         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-            <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm">
-               <h3 className="text-xl font-bold text-gray-700 mb-6 flex items-center gap-2"><TrendingUp size={24} className="text-blue-500" /> แนวโน้มยอดขาย</h3>
-               <div className="h-[300px] w-full">
+      {/* --- ส่วนสรุปยอดวันนี้ (Highlight) --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        
+        {/* Card 1: ยอดขายรวม */}
+        <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-5 text-white shadow-lg shadow-blue-200 relative overflow-hidden">
+           <div className="absolute top-0 right-0 p-4 opacity-20"><DollarSign size={64}/></div>
+           <div className="relative z-10">
+               <div className="text-blue-100 mb-1 font-medium">ยอดขายวันนี้ (บาท)</div>
+               <div className="text-4xl font-black tracking-tight">{stats.todaySales.toLocaleString()}</div>
+               <div className="mt-2 text-sm bg-white/20 inline-block px-2 py-1 rounded-lg">
+                   {stats.todayOrders} บิล
+               </div>
+           </div>
+        </div>
+        
+        {/* Card 2: กำไรขั้นต้น */}
+        <div className="bg-white rounded-2xl p-5 border border-green-100 shadow-sm relative overflow-hidden">
+           <div className="flex justify-between items-start mb-2">
+              <div>
+                  <div className="text-gray-500 text-sm font-medium">กำไรขั้นต้น (วันนี้)</div>
+                  <div className="text-3xl font-black text-green-600 mt-1">+{stats.todayProfit.toLocaleString()}</div>
+              </div>
+              <div className="bg-green-100 text-green-600 p-2 rounded-lg"><PieChart /></div>
+           </div>
+           <div className="text-xs text-gray-400 mt-2">* คำนวณจาก (ราคาขาย - ราคาทุน)</div>
+        </div>
+
+        {/* Card 3: แยกประเภทเงิน (เงินสด/โอน) */}
+        <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm col-span-1 lg:col-span-2 flex flex-col justify-center">
+            <div className="flex items-center gap-2 mb-3 text-gray-500 font-medium"><Wallet size={18}/> แยกตามวิธีชำระเงิน</div>
+            <div className="flex gap-4">
+                <div className="flex-1 bg-green-50 rounded-xl p-3 border border-green-100">
+                    <div className="flex items-center gap-2 text-green-700 text-sm font-bold mb-1"><DollarSign size={16}/> เงินสด</div>
+                    <div className="text-2xl font-black text-green-800">{stats.todayCash.toLocaleString()}</div>
+                </div>
+                <div className="flex-1 bg-blue-50 rounded-xl p-3 border border-blue-100">
+                    <div className="flex items-center gap-2 text-blue-700 text-sm font-bold mb-1"><CreditCard size={16}/> เงินโอน</div>
+                    <div className="text-2xl font-black text-blue-800">{stats.todayTransfer.toLocaleString()}</div>
+                </div>
+            </div>
+        </div>
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+         
+         {/* Chart Section */}
+         <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border">
+            <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2"><TrendingUp size={20} className="text-blue-500"/> แนวโน้มยอดขาย (7 วันล่าสุด)</h2>
+            <div className="h-80 w-full">
+               {loading ? <div className="h-full flex items-center justify-center text-gray-400">กำลังโหลด...</div> : (
                   <ResponsiveContainer width="100%" height="100%">
-                     <AreaChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" style={{ fontSize: '12px' }} />
-                        <YAxis style={{ fontSize: '12px' }} />
-                        <Tooltip contentStyle={{ borderRadius: '10px' }} />
-                        <Area type="monotone" dataKey="ยอดขาย" stroke="#2563eb" fill="#2563eb" fillOpacity={0.1} strokeWidth={3} />
-                     </AreaChart>
+                    <AreaChart data={chartData}>
+                        <defs>
+                            <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2}/>
+                            <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0"/>
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} dy={10} />
+                        <YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} tickFormatter={(value) => `${value/1000}k`} />
+                        <Tooltip 
+                            contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} 
+                            formatter={(value: number) => [value.toLocaleString(), 'บาท']}
+                        />
+                        <Area type="monotone" dataKey="sales" stroke="#2563eb" strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" />
+                    </AreaChart>
                   </ResponsiveContainer>
-               </div>
-            </div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm">
-               <h3 className="text-xl font-bold text-gray-700 mb-4">🏆 สินค้าขายดี Top 5</h3>
-               <div className="space-y-4">
-                  {topProducts.map((p, i) => (
-                     <div key={i} className="flex justify-between items-center border-b pb-2">
-                        <div className="flex items-center gap-2">
-                           <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${i === 0 ? 'bg-yellow-400' : i === 1 ? 'bg-gray-400' : 'bg-orange-400'}`}>{i + 1}</span>
-                           <span className="text-sm font-bold text-gray-700 truncate w-32">{p.name}</span>
-                        </div>
-                        <span className="font-black text-blue-600">{p.qty}</span>
-                     </div>
-                  ))}
-               </div>
+               )}
             </div>
          </div>
 
-         {/* 3. [เพิ่มใหม่] ตารางประวัติบิล (Bill History) */}
-         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            <div className="p-6 border-b flex flex-col md:flex-row justify-between items-center gap-4">
-               <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2"><FileText /> รายการบิลย้อนหลัง</h3>
-               <div className="relative w-full md:w-1/3">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                  <input type="text" placeholder="ค้นหาเลขบิล / ชื่อลูกค้า..." className="w-full pl-10 pr-4 py-2 border rounded-xl outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-               </div>
-            </div>
-            <div className="overflow-x-auto">
-               <table className="w-full text-left">
-                  <thead className="bg-gray-50 text-gray-600">
-                     <tr>
-                        <th className="p-4">เวลา</th>
-                        <th className="p-4">เลขบิล</th>
-                        <th className="p-4">ลูกค้า</th>
-                        <th className="p-4">ยอดเงิน</th>
-                        <th className="p-4 text-center">วิธีจ่าย</th>
-                        <th className="p-4 text-center">ดู</th>
-                     </tr>
-                  </thead>
-                  <tbody className="divide-y text-lg">
-                     {filteredOrders.slice(0, 50).map((order) => ( // โชว์แค่ 50 บิลล่าสุดกันหน่วง
-                        <tr key={order.id} className="hover:bg-blue-50 transition cursor-pointer" onClick={() => setSelectedOrder(order)}>
-                           <td className="p-4 text-gray-500 text-base">{new Date(order.created_at).toLocaleDateString('th-TH')} {new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</td>
-                           <td className="p-4 font-mono text-base text-gray-400">#{order.id.slice(0, 6)}</td>
-                           <td className="p-4 font-bold text-gray-800">{order.customers ? (order.customers.nickname || order.customers.name) : '-'}</td>
-                           <td className="p-4 font-black text-blue-900">{order.total_amount.toLocaleString()}</td>
-                           <td className="p-4 text-center">
-                              {order.payment_method === 'cash' ? <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-bold">เงินสด</span> : <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">เงินโอน</span>}
-                           </td>
-                           <td className="p-4 text-center text-gray-400"><Search size={20} /></td>
-                        </tr>
-                     ))}
-                  </tbody>
-               </table>
+         {/* Recent Orders */}
+         <div className="bg-white p-6 rounded-2xl shadow-sm border flex flex-col">
+            <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><ShoppingBag size={20} className="text-purple-500"/> บิลล่าสุด</h2>
+            <div className="space-y-3 flex-1 overflow-y-auto max-h-[400px]">
+                {recentOrders.length === 0 ? <div className="text-center text-gray-400 py-10">ยังไม่มีรายการขายวันนี้</div> : recentOrders.map((order) => (
+                    <div key={order.id} className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-xl transition border border-gray-100">
+                        <div>
+                            <div className="font-bold text-gray-800 text-sm">{order.receipt_no}</div>
+                            <div className="text-xs text-gray-500 flex items-center gap-1">
+                                {new Date(order.created_at).toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'})} น.
+                                • {order.customers ? (order.customers.nickname || order.customers.name) : 'ทั่วไป'}
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <div className="font-bold text-blue-600">+{order.grand_total.toLocaleString()}</div>
+                            <div className={`text-[10px] px-2 py-0.5 rounded-full inline-block mt-1 font-bold ${order.payment_method === 'cash' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'}`}>
+                                {order.payment_method === 'cash' ? 'เงินสด' : 'โอนจ่าย'}
+                            </div>
+                        </div>
+                    </div>
+                ))}
             </div>
          </div>
-
-         {/* --- Modal ดูใบเสร็จ --- */}
-         {selectedOrder && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-               <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                  <div className="bg-gray-100 p-3 flex justify-between items-center border-b"><h3 className="font-bold text-gray-700">ใบเสร็จรับเงิน</h3><button onClick={() => setSelectedOrder(null)} className="p-1 hover:bg-gray-200 rounded-full"><X size={24} /></button></div>
-                  <div className="p-6 overflow-y-auto bg-white">
-                     <div className="text-center mb-4"><div className="font-black text-2xl text-gray-800">ร้านปุ๋ยการเกษตร</div><div className="text-gray-500 text-sm">#{selectedOrder.id.slice(0, 8)}</div></div>
-
-                     {/* ชื่อลูกค้า */}
-                     {selectedOrder.customers && (
-                        <div className="text-center mb-4 bg-orange-50 p-2 rounded-lg text-orange-800 font-bold">
-                           ลูกค้า: {selectedOrder.customers.nickname || selectedOrder.customers.name}
-                        </div>
-                     )}
-
-                     <div className="space-y-2 mb-4 text-sm text-gray-700">
-                        {selectedOrder.order_items.map((item: any, i: number) => (
-                           <div key={i} className="flex justify-between border-b pb-1">
-                              <span>{item.product_name} <span className="text-gray-400">x{item.quantity}</span></span>
-                              <span className="font-bold">{(item.price * item.quantity).toLocaleString()}</span>
-                           </div>
-                        ))}
-                     </div>
-                     <div className="flex justify-between text-xl font-black text-gray-900 mt-4"><span>รวมทั้งสิ้น</span><span>{selectedOrder.total_amount.toLocaleString()}.-</span></div>
-                     {selectedOrder.slip_image && (<div className="mt-4"><div className="text-xs text-gray-500 mb-1">สลิปโอนเงิน:</div><img src={selectedOrder.slip_image} className="w-full rounded border" /></div>)}
-                  </div>
-                  <div className="p-4 bg-gray-50 border-t flex flex-col gap-2">
-                     <button onClick={handleSendSlipLine} className="w-full bg-[#06C755] text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2"><Share2 /> ส่ง LINE</button>
-                     <button onClick={handlePrint} className="w-full bg-gray-800 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2"><Printer /> พิมพ์</button>
-                  </div>
-               </div>
-            </div>
-         )}
 
       </div>
-   );
+    </div>
+  );
 }

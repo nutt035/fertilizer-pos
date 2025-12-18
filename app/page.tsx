@@ -1,21 +1,22 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, CURRENT_BRANCH_ID } from '../lib/supabase';
+import { CartItem, Customer } from '../types';
 import { Search, Trash2, RotateCcw, Banknote, CreditCard, ShoppingCart, Pencil, PauseCircle, Save, History, ArrowRightLeft, Loader2, Upload, Image as ImageIcon, X, User, UserPlus, Check, Printer } from 'lucide-react';
 
 export default function POSPage() {
   // --- State: สินค้า & ตะกร้า ---
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cart, setCart] = useState<any[]>([]); 
+  const [cart, setCart] = useState<CartItem[]>([]); 
   const [heldBills, setHeldBills] = useState<any[]>([]); 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
   
   // --- State: ลูกค้า ---
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<any>(null); // null = ลูกค้าทั่วไป
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [newCustomerName, setNewCustomerName] = useState('');
@@ -46,9 +47,44 @@ export default function POSPage() {
 
   const fetchProducts = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('products').select('*').order('name');
-    if (error) { console.error('Error products:', error); alert('โหลดสินค้าไม่สำเร็จ'); } 
-    else { setProducts(data || []); }
+    // Query แบบใหม่: Join ตาราง inventory, categories, units, barcodes
+    const { data, error } = await supabase
+      .from('products')
+      .select(`
+        *,
+        master_categories (name),
+        master_units (name),
+        product_barcodes (barcode),
+        inventory (quantity)
+      `)
+      .eq('is_active', true)
+      .eq('inventory.branch_id', CURRENT_BRANCH_ID); // กรองเฉพาะสาขานี้
+
+    if (error) { 
+        console.error('Error products:', error); 
+        alert('โหลดสินค้าไม่สำเร็จ: ' + error.message); 
+    } else { 
+        // Map ข้อมูลให้ใช้ง่าย (Flatten Data)
+        const formatted: CartItem[] = data.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            image_url: p.image_url,
+            cost: p.cost,
+            price: p.price,
+            category_id: p.category_id,
+            unit_id: p.unit_id,
+            is_active: p.is_active,
+            quantity: 0, 
+            // Map fields ที่ Join มา
+            category: p.master_categories?.name || 'ทั่วไป',
+            unit: p.master_units?.name || 'ชิ้น',
+            stock: p.inventory?.[0]?.quantity || 0, // สต็อกของสาขานี้
+            barcode: p.product_barcodes?.[0]?.barcode || '',
+            product_barcodes: p.product_barcodes
+        }));
+        setProducts(formatted); 
+    }
     setLoading(false);
   };
 
@@ -59,7 +95,7 @@ export default function POSPage() {
   };
 
   // --- 2. Customer Logic ---
-  const handleSelectCustomer = (customer: any) => {
+  const handleSelectCustomer = (customer: Customer | null) => {
       setSelectedCustomer(customer);
       setIsCustomerModalOpen(false);
       setCustomerSearch('');
@@ -90,14 +126,16 @@ export default function POSPage() {
   );
 
   // --- 3. Cart & Search Logic ---
-  // ยิงบาร์โค้ด
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      // ค้นหาเป๊ะๆ (Barcode match)
+      const term = searchTerm.trim();
+      if (!term) return;
+
+      // ค้นหาเป๊ะๆ (Barcode match) - รองรับหลายบาร์โค้ด
       const exactMatch = products.find(p => 
-        p.barcode === searchTerm || 
-        p.name === searchTerm || 
-        (p.short_code && p.short_code === searchTerm)
+        p.barcode === term || 
+        p.name === term || 
+        p.product_barcodes?.some((b: any) => b.barcode === term)
       );
 
       if (exactMatch) {
@@ -107,35 +145,24 @@ export default function POSPage() {
     }
   };
 
-  const handleProductClick = (product: any) => {
+  const handleProductClick = (product: CartItem) => {
     if (product.stock <= 0) {
-        if (product.type === 'sub') {
-            const parent = products.find(p => p.id === product.parent_id);
-            if (parent && confirm(`ของหมด! \nต้องการเบิก "${parent.name}" \nมาแบ่งขายเป็น "${product.name}" ไหม?`)) {
-                performQuickSplit(parent, product);
-            }
-        } else { alert('สินค้าหมด! กรุณาเติมของที่หน้าสต็อก'); }
+        // ตัด Logic Split เดิมออกชั่วคราว เพราะโครงสร้างเปลี่ยน
+        alert('สินค้าหมด! กรุณาเติมของที่หน้าสต็อก');
         return;
     }
     addToCart(product);
   };
 
-  const performQuickSplit = async (parent: any, child: any) => {
-     if (parent.stock <= 0) return alert(`ทำรายการไม่ได้! "${parent.name}" ก็หมดเหมือนกัน`);
-     const updateParent = supabase.from('products').update({ stock: parent.stock - 1 }).eq('id', parent.id);
-     const quantityGained = child.ratio; 
-     const updateChild = supabase.from('products').update({ stock: child.stock + quantityGained }).eq('id', child.id);
-     await Promise.all([updateParent, updateChild]);
-     alert(`เบิกเรียบร้อย! ได้เพิ่มมา ${quantityGained} ${child.unit}`);
-     fetchProducts();
-  };
-
-  const addToCart = (product: any) => {
+  const addToCart = (product: CartItem) => {
     const currentInCart = cart.find(item => item.id === product.id)?.quantity || 0;
     if (currentInCart + 1 > product.stock) { alert('หยิบเกินจำนวนที่มีในสต็อก!'); return; }
+    
     setCart((prev) => {
       const existing = prev.find((item) => item.id === product.id);
-      if (existing) { return prev.map((item) => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item); }
+      if (existing) { 
+          return prev.map((item) => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item); 
+      }
       return [...prev, { ...product, quantity: 1, note: '' }];
     });
   };
@@ -149,7 +176,7 @@ export default function POSPage() {
 
   const removeFromCart = (productId: string) => { setCart((prev) => prev.filter((item) => item.id !== productId)); };
 
-  // --- 4. Payment Logic ---
+  // --- 4. Payment Logic (New RPC) ---
   const handleSlipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -167,47 +194,34 @@ export default function POSPage() {
            const fileName = `slip_${Date.now()}.${fileExt}`;
            const { error: uploadError } = await supabase.storage.from('slips').upload(fileName, slipFile);
            if (uploadError) throw new Error('อัปโหลดสลิปไม่ผ่าน: ' + uploadError.message);
+           
            const { data } = supabase.storage.from('slips').getPublicUrl(fileName);
            slipUrl = data.publicUrl;
         }
 
-        const { data: orderData, error: orderError } = await supabase
-            .from('orders')
-            .insert({
-                customer_id: selectedCustomer?.id || null,
-                total_amount: totalAmount,
-                payment_method: paymentMethod,
-                cash_received: paymentMethod === 'cash' ? Number(cashReceived) : 0,
-                change_amount: paymentMethod === 'cash' ? changeAmount : 0,
-                slip_image: slipUrl
-            })
-            .select().single();
-
-        if (orderError) throw new Error(orderError.message);
-        const orderId = orderData.id;
-
-        const orderItemsData = cart.map(item => ({
-            order_id: orderId,
+        // เตรียมข้อมูลส่งให้ RPC Transaction
+        const itemsPayload = cart.map(item => ({
             product_id: item.id,
-            product_name: item.name,
-            quantity: item.quantity,
+            qty: item.quantity,
             price: item.price,
             cost: item.cost || 0
         }));
 
-        const { error: itemsError } = await supabase.from('order_items').insert(orderItemsData);
-        if (itemsError) throw new Error(itemsError.message);
+        const { data, error } = await supabase.rpc('process_checkout', {
+            p_branch_id: CURRENT_BRANCH_ID,
+            p_customer_id: selectedCustomer?.id || null,
+            p_payment_method: paymentMethod,
+            p_cash_received: paymentMethod === 'cash' ? Number(cashReceived) : 0,
+            p_change_amount: paymentMethod === 'cash' ? changeAmount : 0,
+            p_slip_image: slipUrl,
+            p_items: itemsPayload
+        });
 
-        // ตัดสต็อก
-        for (const item of cart) {
-            const currentProduct = products.find(p => p.id === item.id);
-            if (currentProduct) {
-                const newStock = currentProduct.stock - item.quantity;
-                await supabase.from('products').update({ stock: newStock }).eq('id', item.id);
-            }
-        }
+        if (error) throw new Error(error.message);
 
-        alert(`✅ บันทึกเรียบร้อย!`);
+        alert(`✅ บันทึกเรียบร้อย! เลขที่ใบเสร็จ: ${data.receipt_no}`);
+        
+        // Reset State
         setCart([]);
         setIsPaymentModalOpen(false);
         setCashReceived('');
@@ -223,13 +237,12 @@ export default function POSPage() {
     }
   };
 
-  // ปริ้นใบเสร็จ (CSS ซ่อนใน globals.css)
   const handlePrint = () => {
     window.print();
   };
 
   // --- Helpers ---
-  const startEditingNote = (item: any) => { setEditingNoteId(item.id); setTempNote(item.note || ''); };
+  const startEditingNote = (item: CartItem) => { setEditingNoteId(item.id); setTempNote(item.note || ''); };
   const saveNote = (productId: string) => { setCart((prev) => prev.map((item) => (item.id === productId ? { ...item, note: tempNote } : item))); setEditingNoteId(null); };
   
   const holdBill = () => { 
@@ -256,8 +269,8 @@ export default function POSPage() {
   
   const filteredProducts = products.filter((p) => {
     const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                       (p.formula && p.formula.includes(searchTerm)) ||
-                       (p.barcode && p.barcode === searchTerm); // รองรับบาร์โค้ดตอนพิมพ์ค้นหา
+                       (p.barcode && p.barcode.includes(searchTerm)) || // หาบาร์โค้ดหลัก
+                       p.product_barcodes?.some(b => b.barcode.includes(searchTerm)); // หาบาร์โค้ดรอง
     const matchCategory = selectedCategory === 'ทั้งหมด' || p.category === selectedCategory;
     return matchSearch && matchCategory;
   });
@@ -265,7 +278,7 @@ export default function POSPage() {
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-gray-100 overflow-hidden font-sans">
       
-      {/* --- ส่วนใบเสร็จสำหรับปริ้น (ซ่อนในหน้าจอปกติ) --- */}
+      {/* --- ส่วนใบเสร็จสำหรับปริ้น --- */}
       <div id="printable-receipt" className="hidden print:block p-2">
           <div className="text-center font-bold text-xl mb-2">ร้านปุ๋ยการเกษตร</div>
           <hr className="border-black mb-2"/>
@@ -317,7 +330,7 @@ export default function POSPage() {
                 <div className="flex items-start justify-between mb-1 lg:mb-2">
                    <div className="flex-1">
                       <div className="flex items-center gap-2"><span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">{index + 1}</span><h3 className="text-base lg:text-lg font-bold text-gray-800 leading-tight">{item.name}</h3></div>
-                      <div className="text-gray-500 text-xs lg:text-sm pl-6 mt-1">สูตร: {item.formula || '-'} | {item.unit}</div>
+                      <div className="text-gray-500 text-xs lg:text-sm pl-6 mt-1">หมวด: {item.category || '-'} | {item.unit}</div>
                    </div>
                    <div className="text-right pl-2"><div className="text-lg lg:text-xl font-bold text-blue-900">{(item.price * item.quantity).toLocaleString()}</div><div className="text-xs text-gray-400">@{item.price.toLocaleString()}</div></div>
                 </div>
@@ -350,13 +363,13 @@ export default function POSPage() {
       {/* --- Section 2: Shelf (ชั้นวาง) --- */}
       <div className="w-full lg:w-3/5 h-[60vh] lg:h-full p-3 lg:p-6 flex flex-col bg-gray-100 order-2 lg:order-none">
         
-        {/* Header ค้นหา (แบบคลีน ลบปุ่มอื่นๆ ออกหมดแล้ว) */}
+        {/* Header ค้นหา */}
         <div className="mb-3 lg:mb-6 flex gap-2 lg:gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input 
                 type="text" 
-                placeholder="ยิงบาร์โค้ด หรือ ค้นหาชื่อ/สูตร..." 
+                placeholder="ยิงบาร์โค้ด หรือ ค้นหาชื่อ..." 
                 className="w-full pl-10 pr-4 py-2 lg:py-4 text-lg lg:text-2xl border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none shadow-sm" 
                 value={searchTerm} 
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -383,9 +396,8 @@ export default function POSPage() {
                      {product.stock <= 0 && <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><span className="text-white font-black text-xl lg:text-3xl rotate-[-15deg] border-2 lg:border-4 border-white px-2 lg:px-4 py-1 rounded">หมด!</span></div>}
                   </div>
                   <div className="p-2 lg:p-4 flex flex-col flex-1 justify-between bg-white relative">
-                    <div><div className="text-2xl lg:text-4xl font-black text-blue-900 mb-0 lg:mb-1 tracking-tighter">{product.formula || ''}</div><div className="text-gray-700 text-sm lg:text-lg leading-tight line-clamp-2 font-medium">{product.name}</div></div>
+                    <div><div className="text-gray-700 text-sm lg:text-lg leading-tight line-clamp-2 font-medium">{product.name}</div></div>
                     <div className="flex justify-between items-end mt-1 lg:mt-2"><div className="text-red-500 font-bold text-lg lg:text-2xl">{product.price.toLocaleString()}</div><div className={`text-[10px] lg:text-xs font-bold px-2 py-1 rounded ${product.stock <= 5 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>เหลือ: {product.stock}</div></div>
-                    {product.type === 'sub' && <div className="absolute top-0 right-0 p-1 lg:p-2"><ArrowRightLeft size={14} className="text-orange-400" /></div>}
                   </div>
                 </div>
               ))}

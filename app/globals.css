@@ -24,3 +24,35 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* app/globals.css */
+
+@media print {
+  /* ซ่อนทุกอย่างใน Body */
+  body * {
+    visibility: hidden;
+  }
+
+  /* แสดงเฉพาะส่วนใบเสร็จ */
+  #printable-receipt,
+  #printable-receipt * {
+    visibility: visible;
+  }
+
+  /* จัดตำแหน่งใบเสร็จให้อยู่มุมซ้ายบน */
+  #printable-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 10px; /* เว้นขอบนิดหน่อย */
+    color: black;  /* บังคับตัวอักษรสีดำ */
+    background: white;
+  }
+
+  /* ซ่อน Scrollbar */
+  ::-webkit-scrollbar {
+    display: none;
+  }
+}
