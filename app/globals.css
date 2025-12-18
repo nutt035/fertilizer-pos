@@ -25,42 +25,39 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* --- ส่วนสำคัญ: ตั้งค่าสำหรับเครื่องพิมพ์ 80mm --- */
+/* globals.css */
+
+@page {
+  size: 80mm auto;   /* ถ้าใช้ 58mm เปลี่ยนเป็น 58mm auto */
+  margin: 0;
+}
+
 @media print {
-  @page {
-    margin: 0;        /* ลบขอบขาวของ Browser */
-    size: auto;       /* ให้ Driver จัดการขนาดกระดาษเอง */
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   body * {
-    visibility: hidden; /* ซ่อนทุกอย่างในเว็บ */
-    height: 0;
-    overflow: hidden;
+    visibility: hidden !important;
   }
 
-  /* แสดงเฉพาะ ID ที่เราต้องการพิมพ์ */
   #printable-receipt,
   #printable-receipt * {
-    visibility: visible;
-    height: auto;
-    overflow: visible;
+    visibility: visible !important;
   }
 
   #printable-receipt {
-    position: absolute;
+    position: fixed;
     left: 0;
     top: 0;
-    width: 78mm;      /* ตั้งเผื่อขอบไว้หน่อย (มาตรฐาน 80mm พิมพ์จริงได้ประมาณ 72-78mm) */
+    width: 80mm;            /* หรือ 78mm ถ้าอยากเผื่อ */
+    box-sizing: border-box;
     padding: 4px;
-    background: white;
-    color: black;
-    font-family: 'Courier New', Courier, monospace; /* ฟอนต์คล้ายใบเสร็จจริง */
+    background: #fff;
+    color: #000;
+    font-family: "Courier New", Courier, monospace;
     font-size: 12px;
     line-height: 1.2;
-  }
-  
-  /* ซ่อน Scrollbar เวลาพิมพ์ */
-  ::-webkit-scrollbar {
-    display: none;
   }
 }

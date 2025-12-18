@@ -131,7 +131,7 @@ export default function OrdersPage() {
                 
                 <div className="overflow-y-auto p-4 flex-1 bg-gray-50">
                     {/* พื้นที่ที่จะถูกพิมพ์ (id="printable-receipt") */}
-                    <div id="printable-receipt" className="bg-white p-4 shadow-sm mx-auto w-full text-xs leading-tight">
+                    <div id="printable-receipt" className="bg-white p-2 shadow-sm mx-auto w-full text-xs leading-tight">
                         <div className="text-center font-bold text-base mb-1">{branchInfo.name || 'ร้านค้า'}</div>
                         <div className="text-center mb-1">{branchInfo.address}</div>
                         <div className="text-center mb-2">โทร: {branchInfo.phone}</div>
