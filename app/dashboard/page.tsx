@@ -13,6 +13,8 @@ import {
   PieChart,
   BarChart3,
   Package,
+  MessageCircle,
+  Loader2,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -65,6 +67,7 @@ const monthLabelTH = (d: Date) =>
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
+  const [sendingLine, setSendingLine] = useState(false);
 
   const [stats, setStats] = useState({
     todaySales: 0,
@@ -342,10 +345,35 @@ export default function DashboardPage() {
             <TrendingUp className="text-blue-600" /> ภาพรวมร้าน (Dashboard)
           </h1>
         </div>
-        <div className="text-right">
-          <div className="text-xs text-gray-400">ข้อมูล ณ วันที่</div>
-          <div className="font-bold text-gray-700">
-            {new Date().toLocaleDateString('th-TH', { dateStyle: 'long' })}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={async () => {
+              setSendingLine(true);
+              try {
+                const res = await fetch('/api/cron/all-alerts');
+                const data = await res.json();
+                if (data.success) {
+                  alert('✅ ส่งแจ้งเตือนไป LINE เรียบร้อย!');
+                } else {
+                  alert('❌ ส่งไม่สำเร็จ: ' + (data.error || 'ไม่มีข้อมูลหรือยังไม่ได้ตั้งค่า LINE'));
+                }
+              } catch (e: any) {
+                alert('❌ Error: ' + e.message);
+              } finally {
+                setSendingLine(false);
+              }
+            }}
+            disabled={sendingLine}
+            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-green-700 disabled:bg-gray-400 transition"
+          >
+            {sendingLine ? <Loader2 className="animate-spin" size={20} /> : <MessageCircle size={20} />}
+            ส่ง LINE
+          </button>
+          <div className="text-right">
+            <div className="text-xs text-gray-500">ข้อมูล ณ วันที่</div>
+            <div className="font-bold text-gray-800">
+              {new Date().toLocaleDateString('th-TH', { dateStyle: 'long' })}
+            </div>
           </div>
         </div>
       </div>
