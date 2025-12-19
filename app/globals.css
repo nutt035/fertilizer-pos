@@ -25,39 +25,143 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* globals.css */
+/* Animation for Toast notifications */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
 
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+/* ========================================
+   PRINT STYLES สำหรับใบเสร็จ 80mm
+   ======================================== */
+
+/* กำหนดขนาดกระดาษ 80mm (กว้าง) x auto (ยาวตามเนื้อหา) */
 @page {
-  size: 80mm auto;   /* ถ้าใช้ 58mm เปลี่ยนเป็น 58mm auto */
+  size: 80mm auto;
   margin: 0;
 }
 
 @media print {
+
+  /* Reset ทั้งหน้า */
+  html,
   body {
+    width: 80mm !important;
+    max-width: 80mm !important;
     margin: 0 !important;
     padding: 0 !important;
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
+  /* ซ่อนทุกอย่างก่อน */
   body * {
     visibility: hidden !important;
   }
 
+  /* ซ่อน elements ที่มี print:hidden class */
+  .print\:hidden,
+  [class*="print:hidden"] {
+    display: none !important;
+  }
+
+  /* ใบเสร็จหลัก - แสดงและจัดตำแหน่ง */
+  #printable-receipt {
+    display: block !important;
+    visibility: visible !important;
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    padding: 2mm 3mm !important;
+    margin: 0 !important;
+    background: white !important;
+    color: black !important;
+    font-family: 'Courier New', 'Consolas', monospace !important;
+    font-size: 11px !important;
+    line-height: 1.4 !important;
+    z-index: 99999 !important;
+  }
+
+  /* แสดง children ทั้งหมดของใบเสร็จ */
   #printable-receipt,
   #printable-receipt * {
     visibility: visible !important;
+    color: black !important;
+    background: transparent !important;
   }
 
+  /* Override background for receipt container */
   #printable-receipt {
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: 80mm;            /* หรือ 78mm ถ้าอยากเผื่อ */
-    box-sizing: border-box;
-    padding: 4px;
-    background: #fff;
-    color: #000;
-    font-family: "Courier New", Courier, monospace;
-    font-size: 12px;
-    line-height: 1.2;
+    background: white !important;
+  }
+
+  /* รักษา flexbox สำหรับ layout */
+  #printable-receipt .receipt-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    width: 100% !important;
+  }
+
+  /* ชื่อสินค้า */
+  #printable-receipt .receipt-item-name {
+    flex: 1 !important;
+    text-align: left !important;
+    word-break: break-word !important;
+    padding-right: 2mm !important;
+  }
+
+  /* ราคา */
+  #printable-receipt .receipt-item-price {
+    flex-shrink: 0 !important;
+    text-align: right !important;
+    font-family: 'Courier New', monospace !important;
+  }
+
+  /* เส้นคั่น */
+  #printable-receipt .receipt-divider {
+    border: none !important;
+    border-top: 1px dashed black !important;
+    margin: 2mm 0 !important;
+  }
+
+  /* Header ร้าน */
+  #printable-receipt .receipt-header {
+    text-align: center !important;
+    font-weight: bold !important;
+    font-size: 14px !important;
+    margin-bottom: 1mm !important;
+  }
+
+  /* ยอดรวม */
+  #printable-receipt .receipt-total {
+    font-weight: bold !important;
+    font-size: 14px !important;
+  }
+
+  /* Footer */
+  #printable-receipt .receipt-footer {
+    text-align: center !important;
+    font-size: 10px !important;
+    margin-top: 3mm !important;
+  }
+
+  /* ไม่ให้ตัดหน้า */
+  #printable-receipt {
+    page-break-inside: avoid !important;
   }
 }
