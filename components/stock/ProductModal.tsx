@@ -29,6 +29,9 @@ interface ProductModalProps {
     categories: MasterData[];
     units: MasterData[];
     onSave: (formData: ProductFormData, file: File | null) => Promise<void>;
+
+    // ✅ เพิ่มอันนี้: รับบาร์โค้ดที่สแกนมาเพื่อ prefill ตอนเพิ่มสินค้าใหม่
+    defaultBarcode?: string;
 }
 
 export default function ProductModal({
@@ -37,7 +40,8 @@ export default function ProductModal({
     product,
     categories,
     units,
-    onSave
+    onSave,
+    defaultBarcode
 }: ProductModalProps) {
     const [formValue, setFormValue] = useState<ProductFormData>({
         sku: '',
@@ -51,44 +55,48 @@ export default function ProductModal({
         unit_id: '',
         image_url: ''
     });
+
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
 
     useEffect(() => {
-        if (isOpen) {
-            if (product) {
-                setFormValue({
-                    sku: product.sku || '',
-                    name: product.name || '',
-                    description: product.description || '',
-                    price: product.price || 0,
-                    cost: product.cost || 0,
-                    stock: product.stock || 0,
-                    barcode: product.barcode || '',
-                    category_id: product.category_id || '',
-                    unit_id: product.unit_id || '',
-                    image_url: product.image_url || ''
-                });
-                setPreviewUrl(product.image_url || null);
-            } else {
-                setFormValue({
-                    sku: '',
-                    name: '',
-                    description: '',
-                    price: 0,
-                    cost: 0,
-                    stock: 0,
-                    barcode: '',
-                    category_id: categories[0]?.id || '',
-                    unit_id: units[0]?.id || '',
-                    image_url: ''
-                });
-                setPreviewUrl(null);
-            }
-            setSelectedFile(null);
+        if (!isOpen) return;
+
+        if (product) {
+            // ✅ โหมดแก้ไข: ใช้ค่าจากสินค้าเดิม
+            setFormValue({
+                sku: product.sku || '',
+                name: product.name || '',
+                description: product.description || '',
+                price: product.price || 0,
+                cost: product.cost || 0,
+                stock: product.stock || 0,
+                barcode: product.barcode || '',
+                category_id: product.category_id || '',
+                unit_id: product.unit_id || '',
+                image_url: product.image_url || ''
+            });
+            setPreviewUrl(product.image_url || null);
+        } else {
+            // ✅ โหมดเพิ่มใหม่: ตั้ง barcode = defaultBarcode (ถ้ามี)
+            setFormValue({
+                sku: '',
+                name: '',
+                description: '',
+                price: 0,
+                cost: 0,
+                stock: 0,
+                barcode: (defaultBarcode || '').toString(),
+                category_id: categories[0]?.id || '',
+                unit_id: units[0]?.id || '',
+                image_url: ''
+            });
+            setPreviewUrl(null);
         }
-    }, [isOpen, product, categories, units]);
+
+        setSelectedFile(null);
+    }, [isOpen, product, categories, units, defaultBarcode]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0) {
@@ -129,7 +137,11 @@ export default function ProductModal({
                     disabled={uploading}
                     className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold text-lg hover:bg-blue-700 flex items-center gap-2 disabled:bg-gray-400"
                 >
-                    {uploading ? 'กำลังอัปโหลด...' : <><Save /> บันทึก</>}
+                    {uploading ? 'กำลังอัปโหลด...' : (
+                        <>
+                            <Save /> บันทึก
+                        </>
+                    )}
                 </button>
             }
         >
@@ -163,12 +175,13 @@ export default function ProductModal({
                         <input
                             type="text"
                             value={formValue.sku}
-                            onChange={e => setFormValue({ ...formValue, sku: e.target.value })}
+                            onChange={(e) => setFormValue({ ...formValue, sku: e.target.value })}
                             className="w-full border p-3 rounded-lg text-lg uppercase"
                             placeholder="เช่น A-001"
                         />
                         <div className="text-xs text-gray-400 mt-1">สำหรับสินค้าที่ไม่มีบาร์โค้ด</div>
                     </div>
+
                     <div>
                         <label className="block text-gray-700 mb-1 font-bold flex items-center gap-1">
                             <Barcode size={16} /> บาร์โค้ด
@@ -176,11 +189,13 @@ export default function ProductModal({
                         <input
                             type="text"
                             value={formValue.barcode}
-                            onChange={e => setFormValue({ ...formValue, barcode: e.target.value })}
+                            onChange={(e) => setFormValue({ ...formValue, barcode: e.target.value })}
                             className="w-full border p-3 rounded-lg text-lg font-mono"
                             placeholder="ยิงสแกนเนอร์ที่นี่"
                         />
-                        <div className="text-xs text-gray-400 mt-1">ถ้ามีบาร์โค้ดสากล</div>
+                        <div className="text-xs text-gray-400 mt-1">
+                            ถ้ามีบาร์โค้ดสากล {defaultBarcode ? `(เติมให้อัตโนมัติ: ${defaultBarcode})` : ''}
+                        </div>
                     </div>
                 </div>
 
@@ -190,17 +205,18 @@ export default function ProductModal({
                     <input
                         type="text"
                         value={formValue.name}
-                        onChange={e => setFormValue({ ...formValue, name: e.target.value })}
+                        onChange={(e) => setFormValue({ ...formValue, name: e.target.value })}
                         className="w-full border p-3 rounded text-lg"
                         placeholder="เช่น ปุ๋ยตรากระต่าย"
                     />
                 </div>
+
                 <div>
                     <label className="block text-gray-700 mb-1">รายละเอียด / สูตร</label>
                     <input
                         type="text"
                         value={formValue.description}
-                        onChange={e => setFormValue({ ...formValue, description: e.target.value })}
+                        onChange={(e) => setFormValue({ ...formValue, description: e.target.value })}
                         className="w-full border p-3 rounded text-lg"
                         placeholder="เช่น สูตร 46-0-0"
                     />
@@ -212,10 +228,10 @@ export default function ProductModal({
                         <label className="block text-gray-700 mb-1">หมวดหมู่ *</label>
                         <select
                             value={formValue.category_id}
-                            onChange={e => setFormValue({ ...formValue, category_id: e.target.value })}
+                            onChange={(e) => setFormValue({ ...formValue, category_id: e.target.value })}
                             className="w-full border p-3 rounded text-lg bg-white"
                         >
-                            {categories.map(c => (
+                            {categories.map((c) => (
                                 <option key={c.id} value={c.id}>{c.name}</option>
                             ))}
                         </select>
@@ -224,10 +240,10 @@ export default function ProductModal({
                         <label className="block text-gray-700 mb-1">หน่วยนับ *</label>
                         <select
                             value={formValue.unit_id}
-                            onChange={e => setFormValue({ ...formValue, unit_id: e.target.value })}
+                            onChange={(e) => setFormValue({ ...formValue, unit_id: e.target.value })}
                             className="w-full border p-3 rounded text-lg bg-white"
                         >
-                            {units.map(u => (
+                            {units.map((u) => (
                                 <option key={u.id} value={u.id}>{u.name}</option>
                             ))}
                         </select>
@@ -241,7 +257,7 @@ export default function ProductModal({
                         <input
                             type="number"
                             value={formValue.cost}
-                            onChange={e => setFormValue({ ...formValue, cost: Number(e.target.value) })}
+                            onChange={(e) => setFormValue({ ...formValue, cost: Number(e.target.value) })}
                             className="w-full border p-3 rounded text-lg"
                         />
                     </div>
@@ -250,7 +266,7 @@ export default function ProductModal({
                         <input
                             type="number"
                             value={formValue.price}
-                            onChange={e => setFormValue({ ...formValue, price: Number(e.target.value) })}
+                            onChange={(e) => setFormValue({ ...formValue, price: Number(e.target.value) })}
                             className="w-full border p-3 rounded text-lg"
                         />
                     </div>
@@ -259,7 +275,7 @@ export default function ProductModal({
                         <input
                             type="number"
                             value={formValue.stock}
-                            onChange={e => setFormValue({ ...formValue, stock: Number(e.target.value) })}
+                            onChange={(e) => setFormValue({ ...formValue, stock: Number(e.target.value) })}
                             className="w-full border p-3 rounded text-lg bg-blue-50 font-bold"
                         />
                     </div>
