@@ -54,7 +54,7 @@ export async function GET() {
 
         const lowStockProducts = (products || []).filter((p: any) => {
             const stock = p.inventory?.[0]?.quantity || 0;
-            const minLevel = p.min_stock_level || 10;
+            const minLevel = p.min_stock_level || 5;
             return stock <= minLevel;
         });
 

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase, CURRENT_BRANCH_ID } from '../lib/supabase';
 import { CartItem, Customer } from '../types';
 import { Search, Trash2, RotateCcw, Banknote, ShoppingCart, Pencil, PauseCircle, Save, History, Loader2, User } from 'lucide-react';
+import useBranchSettings from '../hooks/useBranchSettings';
 
 // Components
 import { SearchInput } from '../components/common';
@@ -27,6 +28,9 @@ interface HeldBill {
 }
 
 export default function POSPage() {
+  // --- ข้อมูลร้าน/สาขา (แก้ไขได้ที่ Settings > ข้อมูลร้าน) ---
+  const { settings: branchSettings } = useBranchSettings();
+
   // --- State: สินค้า & ตะกร้า ---
   const [products, setProducts] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -362,8 +366,13 @@ export default function POSPage() {
         paymentMethod: paymentMethod,
         cashReceived: paymentMethod === 'cash' ? cashReceived : undefined,
         changeAmount: paymentMethod === 'cash' ? changeAmount : undefined,
-        shopName: 'ร้านปุ๋ยการเกษตร',
-        shopPhone: '0XX-XXX-XXXX'
+        // ข้อมูลร้านจาก Settings (แก้ไขได้ที่ Settings > ข้อมูลร้าน & สาขา)
+        shopName: branchSettings.name,
+        shopAddress: branchSettings.address,
+        shopPhone: branchSettings.phone,
+        shopTaxId: branchSettings.tax_id,
+        receiptHeader: branchSettings.receipt_header,
+        receiptFooter: branchSettings.receipt_footer
       });
 
       // ปิด Modal ก่อนแล้วปริ้นอัตโนมัติ

@@ -74,12 +74,6 @@ export default function PaymentModal({
             footer={
                 <>
                     <button
-                        onClick={onPrint}
-                        className="px-6 py-3 lg:px-8 lg:py-4 rounded-xl text-lg lg:text-xl font-bold text-gray-600 hover:bg-gray-200 transition flex items-center gap-2"
-                    >
-                        <Printer /> พิมพ์
-                    </button>
-                    <button
                         onClick={onClose}
                         className="px-6 py-3 lg:px-8 lg:py-4 rounded-xl text-lg lg:text-xl font-bold text-gray-600 hover:bg-gray-200 transition"
                     >

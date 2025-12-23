@@ -7,6 +7,7 @@ import { Plus, Package, Edit, ArrowLeft, Trash2, Image as ImageIcon, Barcode, Sc
 
 // Components
 import { SearchInput } from '../../components/common';
+
 import {
     ProductModal,
     StockInModal,
@@ -438,10 +439,18 @@ export default function StockPage() {
     const totalProfit = totalValue - totalCost;
 
     const lowStockProducts = products.filter(p => {
-        const minLevel = p.min_stock_level ?? 10;
+        const minLevel = p.min_stock_level ?? 5;
         return p.stock <= minLevel && (p.is_alert_active !== false);
     });
     const lowStockCount = lowStockProducts.length;
+
+    console.log(products.map(p => ({
+        name: p.name,
+        stock: p.stock,
+        min: p.min_stock_level,
+        alert: p.is_alert_active
+    })));
+
 
     let filteredProducts = products.filter(p =>
         p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -594,7 +603,7 @@ export default function StockPage() {
                                     <td className="p-4 text-right font-bold text-blue-700 text-xl">{(product.price || 0).toLocaleString()}</td>
 
                                     <td className="p-4 text-center">
-                                        <div className={`text-2xl font-black ${(product.stock || 0) <= (product.min_stock_level ?? 10) ? 'text-red-500' : 'text-green-600'}`}>
+                                        <div className={`text-2xl font-black ${(product.stock || 0) <= (product.min_stock_level ?? 5) ? 'text-red-500' : 'text-green-600'}`}>
                                             {product.stock}
                                         </div>
                                         <div className="text-sm text-gray-400">{product.unit}</div>

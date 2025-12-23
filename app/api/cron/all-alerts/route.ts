@@ -82,13 +82,13 @@ async function getLowStockAlert(): Promise<string | null> {
 
     const lowStock = (products || []).filter((p: any) => {
         const stock = p.inventory?.[0]?.quantity || 0;
-        const minLevel = p.min_stock_level || 10;
+        const minLevel = p.min_stock_level || 5;
         return stock <= minLevel;
     });
 
     if (lowStock.length === 0) return null;
 
-    const list = lowStock.slice(0, 10).map((p: any) =>
+    const list = lowStock.slice(0, 5).map((p: any) =>
         `• ${p.name}: เหลือ ${p.inventory?.[0]?.quantity || 0}`
     ).join('\n');
 
