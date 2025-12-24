@@ -393,10 +393,14 @@ export default function POSPage() {
         // เปิดลิ้นชักอัตโนมัติถ้าเป็นเงินสด (ผ่าน print-server)
         if (paymentMethod === 'cash') {
           try {
-            await fetch('http://localhost:9100/drawer', { method: 'POST' });
-            console.log('✅ Cash drawer opened');
+            // ใช้ mode: 'no-cors' เพื่อให้ HTTPS site เรียก HTTP localhost ได้
+            await fetch('http://localhost:9100/drawer', {
+              method: 'POST',
+              mode: 'no-cors'
+            });
+            console.log('✅ Cash drawer command sent');
           } catch (err) {
-            console.warn('⚠️ ลิ้นชักไม่เปิด - กรุณารัน print-server ก่อน');
+            console.warn('⚠️ ลิ้นชักไม่เปิด - กรุณารัน print-server ก่อน', err);
           }
         }
       }, 300);

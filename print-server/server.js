@@ -20,7 +20,7 @@ const app = express();
 const PORT = 9100;
 
 // ⚠️ แก้ไขชื่อนี้ให้ตรงกับชื่อเครื่องปริ้นใน Windows
-// ดูจาก Settings > Printers & scanners
+// ดูจาก Settings > Printers & scanners > คลิกที่ Printer > Printer properties > Sharing tab > Share name
 const PRINTER_NAME = 'POS-80';
 
 // Enable CORS for web app
@@ -46,15 +46,22 @@ function sendToPrinter(data, callback) {
     // ส่งไปที่เครื่องปริ้นผ่าน Windows print command
     const command = `copy /b "${tempFile}" "\\\\%COMPUTERNAME%\\${PRINTER_NAME}"`;
 
-    exec(command, { shell: 'cmd.exe' }, (error, stdout, stderr) => {
+    console.log('📤 Running command:', command);
+
+    // เพิ่ม timeout 10 วินาที ป้องกันค้าง
+    const child = exec(command, { shell: 'cmd.exe', timeout: 10000 }, (error, stdout, stderr) => {
         // ลบไฟล์ชั่วคราว
         try { fs.unlinkSync(tempFile); } catch (e) { }
 
         if (error) {
-            console.error('Print error:', error.message);
+            console.error('❌ Print error:', error.message);
+            if (error.killed) {
+                console.error('⏱️ Command timed out! Check printer name.');
+            }
             callback(error);
         } else {
             console.log('✅ Sent to printer successfully');
+            console.log('   stdout:', stdout);
             callback(null);
         }
     });
