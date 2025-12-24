@@ -33,7 +33,21 @@ export default function POSPage() {
   const { settings: branchSettings } = useBranchSettings();
 
   // --- Web Serial API Printer (ไม่ต้องรัน print-server) ---
-  const { isConnected: isPrinterConnected, isSupported: isPrinterSupported, isConnecting, connect: connectPrinter, openDrawer, error: printerError } = usePrinter();
+  const { isConnected: isPrinterConnected, isSupported: isPrinterSupported, isConnecting, connect: connectPrinterFn, openDrawer, error: printerError } = usePrinter();
+
+  // Wrapper function เพื่อแสดง error
+  const connectPrinter = async () => {
+    console.log('🖨️ Attempting to connect printer...');
+    try {
+      const success = await connectPrinterFn();
+      if (success) {
+        alert('✅ เชื่อมต่อเครื่องพิมพ์สำเร็จ!');
+      }
+    } catch (err: any) {
+      console.error('Printer connection error:', err);
+      alert('❌ เชื่อมต่อไม่สำเร็จ: ' + (err?.message || 'Unknown error'));
+    }
+  };
 
   // --- State: สินค้า & ตะกร้า ---
   const [products, setProducts] = useState<CartItem[]>([]);
@@ -500,8 +514,8 @@ export default function POSPage() {
                 onClick={connectPrinter}
                 disabled={isConnecting}
                 className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${isPrinterConnected
-                    ? 'bg-green-500 text-white'
-                    : 'bg-yellow-500 text-yellow-900 hover:bg-yellow-400'
+                  ? 'bg-green-500 text-white'
+                  : 'bg-yellow-500 text-yellow-900 hover:bg-yellow-400'
                   }`}
                 title={isPrinterConnected ? 'เครื่องพิมพ์เชื่อมต่อแล้ว' : 'คลิกเพื่อเชื่อมต่อเครื่องพิมพ์'}
               >
