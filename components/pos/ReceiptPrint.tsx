@@ -72,20 +72,20 @@ export default function ReceiptPrint({ data, isPreview = false }: ReceiptPrintPr
         >
             {/* ===== HEADER ร้าน ===== */}
             <div className="receipt-header">
-                <div style={{ fontSize: '20px', fontWeight: 'bold' }}>ใบเสร็จรับเงิน</div>
-                <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{shopName}</div>
-                {shopAddress && <div style={{ fontSize: '10px' }}>{shopAddress}</div>}
-                {shopPhone && <div style={{ fontSize: '10px' }}>โทร: {shopPhone}</div>}
-                {shopTaxId && <div style={{ fontSize: '10px' }}>เลขประจำตัวผู้เสียภาษี: {shopTaxId}</div>}
+                <div style={{ fontSize: '48px', fontWeight: 'bold' }}>ใบเสร็จรับเงิน</div>
+                <div style={{ fontSize: '32px', fontWeight: 'bold' }}>{shopName}</div>
+                {shopAddress && <div style={{ fontSize: '24px' }}>{shopAddress}</div>}
+                {shopPhone && <div style={{ fontSize: '24px' }}>โทร: {shopPhone}</div>}
+                {shopTaxId && <div style={{ fontSize: '24px' }}>เลขประจำตัวผู้เสียภาษี: {shopTaxId}</div>}
             </div>
 
             <hr className="receipt-divider" />
 
             {/* ===== ข้อมูลบิล ===== */}
-            <div style={{ fontSize: '10px', marginBottom: '2mm' }}>
+            <div style={{ fontSize: '24px', marginBottom: '2mm' }}>
                 {receiptNo && (
                     <div className="receipt-row">
-                        <span>เลขที่:</span>
+                        <span>เลขที่ใบเสร็จ:</span>
                         <span className="receipt-item-price">{receiptNo}</span>
                     </div>
                 )}
@@ -112,11 +112,11 @@ export default function ReceiptPrint({ data, isPreview = false }: ReceiptPrintPr
                 {items.map((item, i) => (
                     <div key={i} style={{ marginBottom: '1mm' }}>
                         {/* ชื่อสินค้า */}
-                        <div style={{ fontSize: '11px' }}>
+                        <div style={{ fontSize: '24px' }}>
                             {item.name}
                         </div>
                         {/* จำนวน x ราคา = รวม */}
-                        <div className="receipt-row" style={{ fontSize: '10px', paddingLeft: '2mm' }}>
+                        <div className="receipt-row" style={{ fontSize: '24px', paddingLeft: '2mm' }}>
                             <span className="receipt-item-name">
                                 {item.quantity} x {item.price.toLocaleString()}
                             </span>
@@ -132,14 +132,14 @@ export default function ReceiptPrint({ data, isPreview = false }: ReceiptPrintPr
 
             {/* ===== สรุปยอด ===== */}
             <div style={{ marginBottom: '2mm' }}>
-                <div className="receipt-row" style={{ fontSize: '11px' }}>
+                <div className="receipt-row" style={{ fontSize: '24px' }}>
                     <span>จำนวนรายการ:</span>
                     <span className="receipt-item-price">{items.length} รายการ ({totalItems} ชิ้น)</span>
                 </div>
 
                 <div className="receipt-row receipt-total" style={{ marginTop: '1mm' }}>
-                    <span>รวมสุทธิ:</span>
-                    <span className="receipt-item-price" style={{ fontSize: '16px' }}>
+                    <span style={{ fontSize: '24px' }}>รวมสุทธิ:</span>
+                    <span className="receipt-item-price" style={{ fontSize: '24px' }}>
                         {totalAmount.toLocaleString()} บาท
                     </span>
                 </div>
@@ -147,7 +147,7 @@ export default function ReceiptPrint({ data, isPreview = false }: ReceiptPrintPr
 
             {/* ===== ข้อมูลการชำระ ===== */}
             {paymentMethod === 'cash' && cashReceived !== undefined && (
-                <div style={{ fontSize: '11px', marginBottom: '2mm' }}>
+                <div style={{ fontSize: '20px', marginBottom: '2mm' }}>
                     <hr className="receipt-divider" />
                     <div className="receipt-row">
                         <span>ชำระ:</span>
@@ -157,7 +157,7 @@ export default function ReceiptPrint({ data, isPreview = false }: ReceiptPrintPr
                         <span>รับมา:</span>
                         <span className="receipt-item-price">{cashReceived.toLocaleString()} บาท</span>
                     </div>
-                    <div className="receipt-row" style={{ fontWeight: 'bold' }}>
+                    <div className="receipt-row">
                         <span>เงินทอน:</span>
                         <span className="receipt-item-price">{(changeAmount || 0).toLocaleString()} บาท</span>
                     </div>
@@ -165,7 +165,7 @@ export default function ReceiptPrint({ data, isPreview = false }: ReceiptPrintPr
             )}
 
             {paymentMethod === 'transfer' && (
-                <div style={{ fontSize: '11px', marginBottom: '2mm' }}>
+                <div style={{ fontSize: '24px', marginBottom: '2mm' }}>
                     <hr className="receipt-divider" />
                     <div className="receipt-row">
                         <span>ชำระ:</span>
@@ -175,8 +175,8 @@ export default function ReceiptPrint({ data, isPreview = false }: ReceiptPrintPr
             )}
 
             {/* ===== FOOTER ===== */}
-            <hr className="receipt-divider" />
-            <div className="receipt-footer">
+            <hr className="receipt-divider" style={{ fontSize: '24px' }} />
+            <div className="receipt-footer" style={{ fontSize: '24px' }}>
                 <div>*** {receiptFooter} ***</div>
                 <div style={{ marginTop: '1mm' }}>กรุณาเก็บใบเสร็จไว้เป็นหลักฐาน</div>
             </div>

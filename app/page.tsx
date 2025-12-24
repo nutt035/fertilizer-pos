@@ -5,6 +5,7 @@ import { supabase, CURRENT_BRANCH_ID } from '../lib/supabase';
 import { CartItem, Customer } from '../types';
 import { Search, Trash2, RotateCcw, Banknote, ShoppingCart, Pencil, PauseCircle, Save, History, Loader2, User } from 'lucide-react';
 import useBranchSettings from '../hooks/useBranchSettings';
+import usePrinter from '../hooks/usePrinter';
 
 // Components
 import { SearchInput } from '../components/common';
@@ -31,6 +32,9 @@ export default function POSPage() {
   // --- ข้อมูลร้าน/สาขา (แก้ไขได้ที่ Settings > ข้อมูลร้าน) ---
   const { settings: branchSettings } = useBranchSettings();
 
+  // --- Web Serial API Printer (ไม่ต้องรัน print-server) ---
+  const { isConnected: isPrinterConnected, isSupported: isPrinterSupported, isConnecting, connect: connectPrinter, openDrawer, error: printerError } = usePrinter();
+
   // --- State: สินค้า & ตะกร้า ---
   const [products, setProducts] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,6 +42,7 @@ export default function POSPage() {
   const [heldBills, setHeldBills] = useState<HeldBill[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
 
   // --- Refs: ช่องยิงบาร์โค้ด (ล็อกโฟกัส) ---
   const scanInputRef = useRef<HTMLInputElement>(null);
@@ -136,6 +141,7 @@ export default function POSPage() {
   useEffect(() => {
     fetchProducts();
     fetchCustomers();
+    fetchCategories();
     // ให้โฟกัสช่องยิงตั้งแต่เข้า page
     focusScan();
   }, []);
@@ -184,6 +190,12 @@ export default function POSPage() {
     const { data, error } = await supabase.from('customers').select('*').order('name');
     if (error) console.error('Error customers:', error);
     else setCustomers(data || []);
+  };
+
+  const fetchCategories = async () => {
+    const { data, error } = await supabase.from('master_categories').select('*').order('name');
+    if (error) console.error('Error categories:', error);
+    else setCategories(data || []);
   };
 
   // --- 2. Customer Logic ---
@@ -379,8 +391,17 @@ export default function POSPage() {
       setIsPaymentModalOpen(false);
 
       // รอให้ receipt data render แล้วค่อยปริ้น
-      setTimeout(() => {
+      setTimeout(async () => {
         window.print();
+
+        // เปิดลิ้นชักอัตโนมัติถ้าเป็นเงินสด (ผ่าน Web Serial API)
+        if (paymentMethod === 'cash') {
+          if (isPrinterConnected) {
+            await openDrawer();
+          } else {
+            console.warn('⚠️ ลิ้นชักไม่ได้เปิด - กรุณาเชื่อมต่อเครื่องพิมพ์ก่อน');
+          }
+        }
       }, 300);
 
       // Reset State หลังปริ้น
@@ -472,7 +493,29 @@ export default function POSPage() {
           <h1 className="text-xl lg:text-2xl font-bold flex items-center gap-2">
             <ShoppingCart className="w-6 h-6 lg:w-8 lg:h-8" /> รายการขาย
           </h1>
-          <p className="text-blue-200 text-xs lg:text-sm">{new Date().toLocaleDateString('th-TH')}</p>
+          <div className="flex items-center gap-2">
+            {/* Printer Connection Button */}
+            {isPrinterSupported && (
+              <button
+                onClick={connectPrinter}
+                disabled={isConnecting}
+                className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${isPrinterConnected
+                    ? 'bg-green-500 text-white'
+                    : 'bg-yellow-500 text-yellow-900 hover:bg-yellow-400'
+                  }`}
+                title={isPrinterConnected ? 'เครื่องพิมพ์เชื่อมต่อแล้ว' : 'คลิกเพื่อเชื่อมต่อเครื่องพิมพ์'}
+              >
+                {isConnecting ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : isPrinterConnected ? (
+                  '🖨️ เชื่อมต่อแล้ว'
+                ) : (
+                  '🖨️ เชื่อมต่อ'
+                )}
+              </button>
+            )}
+            <p className="text-blue-200 text-xs lg:text-sm">{new Date().toLocaleDateString('th-TH')}</p>
+          </div>
         </div>
 
         {/* แถบเลือกลูกค้า */}
@@ -607,7 +650,7 @@ export default function POSPage() {
         </div>
 
         <div className="flex gap-2 mb-2 lg:mb-4 overflow-x-auto pb-2 scrollbar-hide">
-          {['ทั้งหมด', 'ปุ๋ยเม็ด', 'ปุ๋ยน้ำ', 'ยาเคมี', 'ฮอร์โมน', 'อุปกรณ์'].map(cat => (
+          {['ทั้งหมด', ...categories.map(c => c.name)].map(cat => (
             <button
               key={cat}
               onClick={() => { setSelectedCategory(cat); focusScan(); }}
