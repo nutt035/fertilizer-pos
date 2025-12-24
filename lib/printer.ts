@@ -1,17 +1,23 @@
 /**
- * Web Serial API Printer Utility
+ * Printer Utility - WebUSB + Web Serial API
  * ส่งคำสั่ง ESC/POS โดยตรงจาก browser ไปยังเครื่องพิมพ์
  * 
  * รองรับ: Chrome 89+, Edge 89+
  * ไม่รองรับ: Firefox, Safari
+ * 
+ * Supports:
+ * - WebUSB API (for USB printers like POS-80)
+ * - Web Serial API (for Serial/COM port printers)
  */
 
-// Type declarations for Web Serial API (not yet in TypeScript lib)
+// Type declarations for Web Serial API and WebUSB API
 declare global {
     interface Navigator {
         serial: Serial;
+        usb: USB;
     }
 
+    // Web Serial API types
     interface Serial extends EventTarget {
         requestPort(options?: SerialPortRequestOptions): Promise<SerialPort>;
         getPorts(): Promise<SerialPort[]>;
@@ -43,109 +49,217 @@ declare global {
         bufferSize?: number;
         flowControl?: 'none' | 'hardware';
     }
+
+    // WebUSB API types
+    interface USB {
+        requestDevice(options: USBDeviceRequestOptions): Promise<USBDevice>;
+        getDevices(): Promise<USBDevice[]>;
+    }
+
+    interface USBDeviceRequestOptions {
+        filters: USBDeviceFilter[];
+    }
+
+    interface USBDeviceFilter {
+        vendorId?: number;
+        productId?: number;
+        classCode?: number;
+        subclassCode?: number;
+        protocolCode?: number;
+        serialNumber?: string;
+    }
+
+    interface USBDevice {
+        readonly vendorId: number;
+        readonly productId: number;
+        readonly productName?: string;
+        readonly manufacturerName?: string;
+        readonly configuration: USBConfiguration | null;
+        open(): Promise<void>;
+        close(): Promise<void>;
+        selectConfiguration(configurationValue: number): Promise<void>;
+        claimInterface(interfaceNumber: number): Promise<void>;
+        releaseInterface(interfaceNumber: number): Promise<void>;
+        transferOut(endpointNumber: number, data: BufferSource): Promise<USBOutTransferResult>;
+        transferIn(endpointNumber: number, length: number): Promise<USBInTransferResult>;
+    }
+
+    interface USBConfiguration {
+        readonly configurationValue: number;
+        readonly interfaces: USBInterface[];
+    }
+
+    interface USBInterface {
+        readonly interfaceNumber: number;
+        readonly alternate: USBAlternateInterface;
+    }
+
+    interface USBAlternateInterface {
+        readonly alternateSetting: number;
+        readonly interfaceClass: number;
+        readonly endpoints: USBEndpoint[];
+    }
+
+    interface USBEndpoint {
+        readonly endpointNumber: number;
+        readonly direction: 'in' | 'out';
+        readonly type: 'bulk' | 'interrupt' | 'isochronous';
+    }
+
+    interface USBOutTransferResult {
+        readonly bytesWritten: number;
+        readonly status: 'ok' | 'stall' | 'babble';
+    }
+
+    interface USBInTransferResult {
+        readonly data: DataView;
+        readonly status: 'ok' | 'stall' | 'babble';
+    }
 }
 
 // ESC/POS Commands
 export const ESC_POS = {
-    // Initialize printer
     INIT: new Uint8Array([0x1B, 0x40]),
-
-    // Open cash drawer (Pin 2 - RJ11 commonly used)
     OPEN_DRAWER_PIN2: new Uint8Array([0x1B, 0x70, 0x00, 0x19, 0xFA]),
-
-    // Open cash drawer (Pin 5 - alternative)
     OPEN_DRAWER_PIN5: new Uint8Array([0x1B, 0x70, 0x01, 0x19, 0xFA]),
-
-    // Cut paper (full cut)
     CUT_PAPER: new Uint8Array([0x1D, 0x56, 0x00]),
-
-    // Cut paper (partial cut)
-    CUT_PAPER_PARTIAL: new Uint8Array([0x1D, 0x56, 0x01]),
-
-    // Line feed
     LINE_FEED: new Uint8Array([0x0A]),
-
-    // Text alignment
-    ALIGN_LEFT: new Uint8Array([0x1B, 0x61, 0x00]),
     ALIGN_CENTER: new Uint8Array([0x1B, 0x61, 0x01]),
-    ALIGN_RIGHT: new Uint8Array([0x1B, 0x61, 0x02]),
-
-    // Text size (normal)
     TEXT_NORMAL: new Uint8Array([0x1B, 0x21, 0x00]),
-
-    // Text size (double height)
-    TEXT_DOUBLE_HEIGHT: new Uint8Array([0x1B, 0x21, 0x10]),
-
-    // Text size (double width)
-    TEXT_DOUBLE_WIDTH: new Uint8Array([0x1B, 0x21, 0x20]),
-
-    // Text size (double height & width)
     TEXT_DOUBLE: new Uint8Array([0x1B, 0x21, 0x30]),
-
-    // Bold on/off
     BOLD_ON: new Uint8Array([0x1B, 0x45, 0x01]),
     BOLD_OFF: new Uint8Array([0x1B, 0x45, 0x00]),
 };
 
-// Printer connection state
+// Connection state
+type ConnectionType = 'usb' | 'serial' | null;
+let connectionType: ConnectionType = null;
+let usbDevice: USBDevice | null = null;
+let usbEndpoint: number = 1;
 let serialPort: SerialPort | null = null;
-let writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
+let serialWriter: WritableStreamDefaultWriter<Uint8Array> | null = null;
 
 /**
- * Check if Web Serial API is supported
+ * Check if WebUSB is supported
+ */
+export function isWebUSBSupported(): boolean {
+    return 'usb' in navigator;
+}
+
+/**
+ * Check if Web Serial is supported
  */
 export function isWebSerialSupported(): boolean {
     return 'serial' in navigator;
 }
 
 /**
- * Check if printer is currently connected
+ * Check if any printer API is supported
  */
-export function isPrinterConnected(): boolean {
-    return serialPort !== null && writer !== null;
+export function isPrinterAPISupported(): boolean {
+    return isWebUSBSupported() || isWebSerialSupported();
 }
 
 /**
- * Connect to printer via Web Serial API
- * @returns Promise<boolean> - true if connected successfully
+ * Check if printer is connected
+ */
+export function isPrinterConnected(): boolean {
+    return connectionType !== null;
+}
+
+/**
+ * Get current connection type
+ */
+export function getConnectionType(): ConnectionType {
+    return connectionType;
+}
+
+/**
+ * Connect to printer - tries WebUSB first, then Web Serial
  */
 export async function connectPrinter(): Promise<boolean> {
-    if (!isWebSerialSupported()) {
-        throw new Error('เบราว์เซอร์ไม่รองรับ Web Serial API กรุณาใช้ Chrome หรือ Edge');
+    // Try WebUSB first (for USB printers like POS-80)
+    if (isWebUSBSupported()) {
+        try {
+            console.log('🔌 Trying WebUSB...');
+            await connectWebUSB();
+            return true;
+        } catch (err: any) {
+            console.log('WebUSB failed:', err.message);
+            // Continue to try Serial
+        }
     }
 
-    try {
-        // Request port selection from user
-        serialPort = await navigator.serial.requestPort();
-
-        // Open port with common thermal printer settings
-        await serialPort.open({
-            baudRate: 9600,
-            dataBits: 8,
-            stopBits: 1,
-            parity: 'none',
-            flowControl: 'none',
-        });
-
-        // Get writer
-        if (serialPort.writable) {
-            writer = serialPort.writable.getWriter();
+    // Fallback to Web Serial (for Serial/COM port printers)
+    if (isWebSerialSupported()) {
+        try {
+            console.log('🔌 Trying Web Serial...');
+            await connectSerial();
+            return true;
+        } catch (err: any) {
+            console.log('Web Serial failed:', err.message);
+            throw err;
         }
-
-        // Initialize printer
-        await sendCommand(ESC_POS.INIT);
-
-        console.log('✅ Printer connected via Web Serial API');
-        return true;
-    } catch (error: any) {
-        console.error('❌ Failed to connect printer:', error);
-        await disconnectPrinter();
-
-        if (error.name === 'NotFoundError') {
-            throw new Error('ไม่ได้เลือกเครื่องพิมพ์');
-        }
-        throw new Error('เชื่อมต่อเครื่องพิมพ์ไม่สำเร็จ: ' + error.message);
     }
+
+    throw new Error('เบราว์เซอร์ไม่รองรับการเชื่อมต่อเครื่องพิมพ์');
+}
+
+/**
+ * Connect via WebUSB
+ */
+async function connectWebUSB(): Promise<void> {
+    // Request USB device
+    usbDevice = await navigator.usb.requestDevice({
+        filters: [] // Empty filters = show all devices
+    });
+
+    await usbDevice.open();
+
+    // Select configuration
+    if (usbDevice.configuration === null) {
+        await usbDevice.selectConfiguration(1);
+    }
+
+    // Find the correct interface and endpoint for printing
+    const iface = usbDevice.configuration?.interfaces[0];
+    if (!iface) {
+        throw new Error('ไม่พบ interface ของเครื่องพิมพ์');
+    }
+
+    await usbDevice.claimInterface(iface.interfaceNumber);
+
+    // Find OUT endpoint (for sending data to printer)
+    const alternate = iface.alternate;
+    const outEndpoint = alternate.endpoints.find(ep => ep.direction === 'out');
+    if (outEndpoint) {
+        usbEndpoint = outEndpoint.endpointNumber;
+    }
+
+    connectionType = 'usb';
+    console.log('✅ Connected via WebUSB');
+}
+
+/**
+ * Connect via Web Serial
+ */
+async function connectSerial(): Promise<void> {
+    serialPort = await navigator.serial.requestPort();
+
+    await serialPort.open({
+        baudRate: 9600,
+        dataBits: 8,
+        stopBits: 1,
+        parity: 'none',
+        flowControl: 'none',
+    });
+
+    if (serialPort.writable) {
+        serialWriter = serialPort.writable.getWriter();
+    }
+
+    connectionType = 'serial';
+    console.log('✅ Connected via Web Serial');
 }
 
 /**
@@ -153,78 +267,76 @@ export async function connectPrinter(): Promise<boolean> {
  */
 export async function disconnectPrinter(): Promise<void> {
     try {
-        if (writer) {
-            await writer.releaseLock();
-            writer = null;
+        if (connectionType === 'usb' && usbDevice) {
+            await usbDevice.close();
+            usbDevice = null;
+        } else if (connectionType === 'serial') {
+            if (serialWriter) {
+                await serialWriter.releaseLock();
+                serialWriter = null;
+            }
+            if (serialPort) {
+                await serialPort.close();
+                serialPort = null;
+            }
         }
-        if (serialPort) {
-            await serialPort.close();
-            serialPort = null;
-        }
+        connectionType = null;
         console.log('🔌 Printer disconnected');
     } catch (error) {
         console.error('Error disconnecting:', error);
-        writer = null;
+        connectionType = null;
+        usbDevice = null;
+        serialWriter = null;
         serialPort = null;
     }
 }
 
 /**
- * Send raw command to printer
+ * Send command to printer
  */
 export async function sendCommand(command: Uint8Array): Promise<void> {
-    if (!writer) {
-        throw new Error('ไม่ได้เชื่อมต่อเครื่องพิมพ์');
-    }
-    await writer.write(command);
-}
-
-/**
- * Send text to printer (with Thai encoding support)
- */
-export async function sendText(text: string): Promise<void> {
-    if (!writer) {
+    if (!isPrinterConnected()) {
         throw new Error('ไม่ได้เชื่อมต่อเครื่องพิมพ์');
     }
 
-    // Convert text to bytes (using TIS-620 for Thai)
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text);
-    await writer.write(data);
+    if (connectionType === 'usb' && usbDevice) {
+        await usbDevice.transferOut(usbEndpoint, command.buffer as ArrayBuffer);
+    } else if (connectionType === 'serial' && serialWriter) {
+        await serialWriter.write(command);
+    }
 }
 
 /**
  * Open cash drawer
- * @param tryBothPins - If true, try Pin 5 if Pin 2 fails
  */
-export async function openCashDrawer(tryBothPins: boolean = true): Promise<void> {
+export async function openCashDrawer(): Promise<void> {
     if (!isPrinterConnected()) {
         throw new Error('กรุณาเชื่อมต่อเครื่องพิมพ์ก่อน');
     }
 
     try {
-        // Try Pin 2 first (most common)
         await sendCommand(ESC_POS.OPEN_DRAWER_PIN2);
         console.log('✅ Cash drawer opened (Pin 2)');
     } catch (error) {
-        if (tryBothPins) {
-            // Fallback to Pin 5
-            await sendCommand(ESC_POS.OPEN_DRAWER_PIN5);
-            console.log('✅ Cash drawer opened (Pin 5)');
-        } else {
-            throw error;
-        }
+        // Try Pin 5 as fallback
+        await sendCommand(ESC_POS.OPEN_DRAWER_PIN5);
+        console.log('✅ Cash drawer opened (Pin 5)');
     }
 }
 
 /**
- * Print text and cut paper
+ * Send text to printer
+ */
+export async function sendText(text: string): Promise<void> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text);
+    await sendCommand(data);
+}
+
+/**
+ * Print and cut
  */
 export async function printAndCut(text: string): Promise<void> {
-    if (!isPrinterConnected()) {
-        throw new Error('กรุณาเชื่อมต่อเครื่องพิมพ์ก่อน');
-    }
-
     await sendCommand(ESC_POS.INIT);
     await sendText(text);
     await sendCommand(ESC_POS.LINE_FEED);
@@ -233,17 +345,3 @@ export async function printAndCut(text: string): Promise<void> {
     await sendCommand(ESC_POS.CUT_PAPER);
 }
 
-/**
- * Listen for printer disconnect events
- */
-export function onPrinterDisconnect(callback: () => void): void {
-    if (serialPort) {
-        navigator.serial.addEventListener('disconnect', (event) => {
-            if (event.target === serialPort) {
-                writer = null;
-                serialPort = null;
-                callback();
-            }
-        });
-    }
-}

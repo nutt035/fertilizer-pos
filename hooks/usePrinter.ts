@@ -1,15 +1,16 @@
 'use client';
 
-// Import types from printer.ts (which has Web Serial API type declarations)
+// Import types from printer.ts (which has WebUSB + Web Serial API type declarations)
 import '../lib/printer';
 
 import { useState, useEffect, useCallback } from 'react';
 import {
-    isWebSerialSupported,
+    isPrinterAPISupported,
     isPrinterConnected,
     connectPrinter,
     disconnectPrinter,
     openCashDrawer,
+    getConnectionType,
 } from '../lib/printer';
 
 export interface UsePrinterReturn {
@@ -55,7 +56,7 @@ export function usePrinter(): UsePrinterReturn {
 
     // Check browser support on mount
     useEffect(() => {
-        const supported = isWebSerialSupported();
+        const supported = isPrinterAPISupported();
         setIsSupported(supported);
 
         if (!supported) {
