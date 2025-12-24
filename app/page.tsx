@@ -388,12 +388,10 @@ export default function POSPage() {
 
       // รอให้ receipt data render แล้วค่อยปริ้น
       setTimeout(async () => {
-        window.print();
-
         // เปิดลิ้นชักอัตโนมัติถ้าเป็นเงินสด (ผ่าน print-server)
+        // ต้องทำก่อน window.print() เพราะ print จะ block browser
         if (paymentMethod === 'cash') {
           try {
-            // ใช้ mode: 'no-cors' เพื่อให้ HTTPS site เรียก HTTP localhost ได้
             await fetch('http://localhost:9100/drawer', {
               method: 'POST',
               mode: 'no-cors'
@@ -403,6 +401,9 @@ export default function POSPage() {
             console.warn('⚠️ ลิ้นชักไม่เปิด - กรุณารัน print-server ก่อน', err);
           }
         }
+
+        // ปริ้นใบเสร็จ (หลังเปิดลิ้นชักแล้ว)
+        window.print();
       }, 300);
 
       // Reset State หลังปริ้น
