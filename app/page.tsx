@@ -189,7 +189,8 @@ export default function POSPage() {
   };
 
   const fetchCategories = async () => {
-    const { data, error } = await supabase.from('master_categories').select('*').order('name');
+    // เรียงตาม sort_order ที่เราทำ drag-drop ไว้
+    const { data, error } = await supabase.from('master_categories').select('*').order('sort_order');
     if (error) console.error('Error categories:', error);
     else setCategories(data || []);
   };

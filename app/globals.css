@@ -57,6 +57,23 @@ body {
   animation: slide-in 0.3s ease-out;
 }
 
+/* Animation for Confirm Dialog */
+@keyframes scale-in {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.15s ease-out;
+}
+
 /* ========================================
    PRINT STYLES สำหรับใบเสร็จ 80mm
    ======================================== */

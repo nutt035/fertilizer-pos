@@ -66,6 +66,12 @@ export default function SettingsPage() {
     const [units, setUnits] = useState<any[]>([]);
     const [newItemName, setNewItemName] = useState('');
 
+    // State for sub-category
+    const [newParentId, setNewParentId] = useState<string | null>(null);
+
+    // State for drag-drop
+    const [draggedId, setDraggedId] = useState<string | null>(null);
+
     useEffect(() => {
         fetchAllBranches();
         fetchBranchInfo(CURRENT_BRANCH_ID);
@@ -108,10 +114,55 @@ export default function SettingsPage() {
     };
 
     const fetchMasterData = async () => {
-        const { data: cats } = await supabase.from('master_categories').select('*').order('name');
+        // เรียงหมวดหมู่ตาม sort_order
+        const { data: cats } = await supabase.from('master_categories').select('*').order('sort_order');
         const { data: uns } = await supabase.from('master_units').select('*').order('name');
         setCategories(cats || []);
         setUnits(uns || []);
+    };
+
+    // Drag-drop handlers for category reordering
+    const handleDragStart = (id: string) => {
+        setDraggedId(id);
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+    };
+
+    const handleDrop = async (targetId: string) => {
+        if (!draggedId || draggedId === targetId) {
+            setDraggedId(null);
+            return;
+        }
+
+        // Find indices
+        const draggedIndex = categories.findIndex(c => c.id === draggedId);
+        const targetIndex = categories.findIndex(c => c.id === targetId);
+
+        if (draggedIndex === -1 || targetIndex === -1) {
+            setDraggedId(null);
+            return;
+        }
+
+        // Reorder locally first for instant feedback
+        const newCategories = [...categories];
+        const [dragged] = newCategories.splice(draggedIndex, 1);
+        newCategories.splice(targetIndex, 0, dragged);
+        setCategories(newCategories);
+
+        // Update sort_order in database
+        const updates = newCategories.map((cat, index) => ({
+            id: cat.id,
+            sort_order: index + 1
+        }));
+
+        for (const update of updates) {
+            await supabase.from('master_categories').update({ sort_order: update.sort_order }).eq('id', update.id);
+        }
+
+        setDraggedId(null);
+        setNotice({ type: 'success', message: '✅ จัดลำดับเรียบร้อย' });
     };
 
     const handleSaveBranch = async () => {
@@ -196,13 +247,31 @@ export default function SettingsPage() {
         if (!newItemName.trim()) return;
         const table = type === 'CATEGORY' ? 'master_categories' : 'master_units';
 
-        const { error } = await supabase.from(table).insert({ name: newItemName.trim() });
-        if (error) {
-            setNotice({ type: 'error', message: `เพิ่มไม่สำเร็จ (ชื่ออาจซ้ำ): ${error.message}` });
+        // Category specific - include parent_id and sort_order
+        if (type === 'CATEGORY') {
+            const maxSortOrder = Math.max(...categories.map(c => c.sort_order || 0), 0);
+            const { error } = await supabase.from(table).insert({
+                name: newItemName.trim(),
+                parent_id: newParentId || null,
+                sort_order: maxSortOrder + 1
+            });
+            if (error) {
+                setNotice({ type: 'error', message: `เพิ่มไม่สำเร็จ (ชื่ออาจซ้ำ): ${error.message}` });
+            } else {
+                setNewItemName('');
+                setNewParentId(null);
+                setNotice({ type: 'success', message: '✅ เพิ่มหมวดหมู่เรียบร้อย' });
+                fetchMasterData();
+            }
         } else {
-            setNewItemName('');
-            setNotice({ type: 'success', message: '✅ เพิ่มรายการเรียบร้อย' });
-            fetchMasterData();
+            const { error } = await supabase.from(table).insert({ name: newItemName.trim() });
+            if (error) {
+                setNotice({ type: 'error', message: `เพิ่มไม่สำเร็จ (ชื่ออาจซ้ำ): ${error.message}` });
+            } else {
+                setNewItemName('');
+                setNotice({ type: 'success', message: '✅ เพิ่มรายการเรียบร้อย' });
+                fetchMasterData();
+            }
         }
     };
 
@@ -529,11 +598,14 @@ export default function SettingsPage() {
 
                 {/* --- Tab 2 & 3: Categories & Units --- */}
                 {(activeTab === 'CATEGORY' || activeTab === 'UNIT') && (
-                    <div className="max-w-xl">
+                    <div className="max-w-2xl">
                         <h2 className="text-lg font-bold border-b pb-2 text-gray-700 flex items-center gap-2 mb-4">
                             {activeTab === 'CATEGORY' ? (
                                 <>
                                     <Layers /> จัดการหมวดหมู่สินค้า
+                                    <span className="ml-2 text-xs font-normal text-gray-400">
+                                        (ลากเพื่อจัดลำดับ)
+                                    </span>
                                 </>
                             ) : (
                                 <>
@@ -542,42 +614,142 @@ export default function SettingsPage() {
                             )}
                         </h2>
 
-                        <div className="flex gap-2 mb-6">
-                            <input
-                                type="text"
-                                placeholder={activeTab === 'CATEGORY' ? 'ชื่อหมวดหมู่ใหม่...' : 'ชื่อหน่วยนับใหม่...'}
-                                className="flex-1 border-2 border-blue-100 p-3 rounded-xl focus:border-blue-500 outline-none"
-                                value={newItemName}
-                                onChange={(e) => setNewItemName(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleAddItem(activeTab)}
-                            />
-                            <button
-                                onClick={() => handleAddItem(activeTab)}
-                                className="bg-green-600 text-white px-4 rounded-xl font-bold hover:bg-green-700 flex items-center gap-2"
-                            >
-                                <Plus /> เพิ่ม
-                            </button>
-                        </div>
-
-                        <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                            {(activeTab === 'CATEGORY' ? categories : units).map((item) => (
-                                <div
-                                    key={item.id}
-                                    className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border hover:bg-white hover:shadow-sm transition"
+                        {/* Add new item */}
+                        <div className="flex flex-col gap-2 mb-6 bg-gray-50 p-4 rounded-xl border">
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    placeholder={activeTab === 'CATEGORY' ? 'ชื่อหมวดหมู่ใหม่...' : 'ชื่อหน่วยนับใหม่...'}
+                                    className="flex-1 border-2 border-blue-100 p-3 rounded-xl focus:border-blue-500 outline-none"
+                                    value={newItemName}
+                                    onChange={(e) => setNewItemName(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleAddItem(activeTab)}
+                                />
+                                <button
+                                    onClick={() => handleAddItem(activeTab)}
+                                    className="bg-green-600 text-white px-4 rounded-xl font-bold hover:bg-green-700 flex items-center gap-2"
                                 >
-                                    <span className="font-bold text-gray-700">{item.name}</span>
-                                    <button
-                                        onClick={() => handleDeleteItem(activeTab, item.id)}
-                                        className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg"
+                                    <Plus /> เพิ่ม
+                                </button>
+                            </div>
+
+                            {/* Parent category selector (only for categories) */}
+                            {activeTab === 'CATEGORY' && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm text-gray-500">เพิ่มเป็นหมวดหมู่ย่อยของ:</span>
+                                    <select
+                                        value={newParentId || ''}
+                                        onChange={(e) => setNewParentId(e.target.value || null)}
+                                        className="border rounded-lg px-3 py-2 text-sm bg-white"
                                     >
-                                        <Trash2 size={18} />
-                                    </button>
+                                        <option value="">-- หมวดหมู่หลัก --</option>
+                                        {categories.filter(c => !c.parent_id).map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
                                 </div>
-                            ))}
-                            {(activeTab === 'CATEGORY' ? categories : units).length === 0 && (
-                                <div className="text-center text-gray-400 py-8">ยังไม่มีข้อมูล</div>
                             )}
                         </div>
+
+                        {/* Category list with drag-drop */}
+                        {activeTab === 'CATEGORY' && (
+                            <div className="space-y-1 max-h-[500px] overflow-y-auto">
+                                {/* Parent categories */}
+                                {categories.filter(c => !c.parent_id).map((parent) => (
+                                    <div key={parent.id}>
+                                        {/* Parent item */}
+                                        <div
+                                            draggable
+                                            onDragStart={() => handleDragStart(parent.id)}
+                                            onDragOver={handleDragOver}
+                                            onDrop={() => handleDrop(parent.id)}
+                                            className={`flex justify-between items-center p-3 rounded-lg border transition cursor-move ${draggedId === parent.id
+                                                    ? 'bg-blue-100 border-blue-300 opacity-50'
+                                                    : 'bg-white hover:bg-gray-50 hover:shadow-sm'
+                                                }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                                <span className="font-bold text-gray-700">{parent.name}</span>
+                                                {categories.filter(c => c.parent_id === parent.id).length > 0 && (
+                                                    <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
+                                                        {categories.filter(c => c.parent_id === parent.id).length} ย่อย
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <button
+                                                onClick={() => handleDeleteItem('CATEGORY', parent.id)}
+                                                className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </div>
+
+                                        {/* Child categories */}
+                                        {categories.filter(c => c.parent_id === parent.id).map((child) => (
+                                            <div
+                                                key={child.id}
+                                                className="flex justify-between items-center p-3 ml-6 bg-gray-50 rounded-lg border-l-4 border-blue-200 mt-1"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-gray-300">└</span>
+                                                    <span className="text-gray-600">{child.name}</span>
+                                                </div>
+                                                <button
+                                                    onClick={() => handleDeleteItem('CATEGORY', child.id)}
+                                                    className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ))}
+
+                                {/* Orphan categories (no parent but have parent_id pointing to non-existent) */}
+                                {categories.filter(c => c.parent_id && !categories.find(p => p.id === c.parent_id)).map((orphan) => (
+                                    <div
+                                        key={orphan.id}
+                                        className="flex justify-between items-center p-3 bg-yellow-50 rounded-lg border border-yellow-200"
+                                    >
+                                        <span className="text-gray-600">{orphan.name}</span>
+                                        <button
+                                            onClick={() => handleDeleteItem('CATEGORY', orphan.id)}
+                                            className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
+                                ))}
+
+                                {categories.length === 0 && (
+                                    <div className="text-center text-gray-400 py-8">ยังไม่มีหมวดหมู่</div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Unit list (simple) */}
+                        {activeTab === 'UNIT' && (
+                            <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                                {units.map((item) => (
+                                    <div
+                                        key={item.id}
+                                        className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border hover:bg-white hover:shadow-sm transition"
+                                    >
+                                        <span className="font-bold text-gray-700">{item.name}</span>
+                                        <button
+                                            onClick={() => handleDeleteItem('UNIT', item.id)}
+                                            className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
+                                ))}
+                                {units.length === 0 && (
+                                    <div className="text-center text-gray-400 py-8">ยังไม่มีหน่วยนับ</div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
