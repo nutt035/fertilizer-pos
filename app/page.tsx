@@ -494,7 +494,27 @@ export default function POSPage() {
           <h1 className="text-xl lg:text-2xl font-bold flex items-center gap-2">
             <ShoppingCart className="w-6 h-6 lg:w-8 lg:h-8" /> รายการขาย
           </h1>
-          <p className="text-blue-200 text-xs lg:text-sm">{new Date().toLocaleDateString('th-TH')}</p>
+          <div className="flex items-center gap-2">
+            {/* ปุ่มทดสอบลิ้นชัก */}
+            <button
+              onClick={async () => {
+                try {
+                  const response = await fetch('http://localhost:9100/drawer', {
+                    method: 'POST',
+                    mode: 'no-cors'
+                  });
+                  alert('✅ ส่งคำสั่งเปิดลิ้นชักแล้ว!');
+                } catch (err: any) {
+                  alert('❌ เปิดลิ้นชักไม่ได้: ' + err.message);
+                }
+              }}
+              className="px-2 py-1 bg-yellow-500 hover:bg-yellow-400 text-yellow-900 rounded-lg text-xs font-bold"
+              title="ทดสอบเปิดลิ้นชัก"
+            >
+              📦 ลิ้นชัก
+            </button>
+            <p className="text-blue-200 text-xs lg:text-sm">{new Date().toLocaleDateString('th-TH')}</p>
+          </div>
         </div>
 
         {/* แถบเลือกลูกค้า */}
