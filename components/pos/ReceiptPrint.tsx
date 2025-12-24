@@ -66,7 +66,7 @@ export default function ReceiptPrint({ data, isPreview = false }: ReceiptPrintPr
 
     return (
         <div
-            id="printable-receipt"
+            id={isPreview ? "receipt-preview" : "printable-receipt"}
             className={isPreview ? "bg-white p-4 shadow-sm" : "print-only"}
             style={isPreview ? {} : { display: 'none' }}
         >

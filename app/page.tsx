@@ -5,7 +5,6 @@ import { supabase, CURRENT_BRANCH_ID } from '../lib/supabase';
 import { CartItem, Customer } from '../types';
 import { Search, Trash2, RotateCcw, Banknote, ShoppingCart, Pencil, PauseCircle, Save, History, Loader2, User } from 'lucide-react';
 import useBranchSettings from '../hooks/useBranchSettings';
-import usePrinter from '../hooks/usePrinter';
 
 // Components
 import { SearchInput } from '../components/common';
@@ -31,23 +30,6 @@ interface HeldBill {
 export default function POSPage() {
   // --- ข้อมูลร้าน/สาขา (แก้ไขได้ที่ Settings > ข้อมูลร้าน) ---
   const { settings: branchSettings } = useBranchSettings();
-
-  // --- Web Serial API Printer (ไม่ต้องรัน print-server) ---
-  const { isConnected: isPrinterConnected, isSupported: isPrinterSupported, isConnecting, connect: connectPrinterFn, openDrawer, error: printerError } = usePrinter();
-
-  // Wrapper function เพื่อแสดง error
-  const connectPrinter = async () => {
-    console.log('🖨️ Attempting to connect printer...');
-    try {
-      const success = await connectPrinterFn();
-      if (success) {
-        alert('✅ เชื่อมต่อเครื่องพิมพ์สำเร็จ!');
-      }
-    } catch (err: any) {
-      console.error('Printer connection error:', err);
-      alert('❌ เชื่อมต่อไม่สำเร็จ: ' + (err?.message || 'Unknown error'));
-    }
-  };
 
   // --- State: สินค้า & ตะกร้า ---
   const [products, setProducts] = useState<CartItem[]>([]);
@@ -408,12 +390,13 @@ export default function POSPage() {
       setTimeout(async () => {
         window.print();
 
-        // เปิดลิ้นชักอัตโนมัติถ้าเป็นเงินสด (ผ่าน Web Serial API)
+        // เปิดลิ้นชักอัตโนมัติถ้าเป็นเงินสด (ผ่าน print-server)
         if (paymentMethod === 'cash') {
-          if (isPrinterConnected) {
-            await openDrawer();
-          } else {
-            console.warn('⚠️ ลิ้นชักไม่ได้เปิด - กรุณาเชื่อมต่อเครื่องพิมพ์ก่อน');
+          try {
+            await fetch('http://localhost:9100/drawer', { method: 'POST' });
+            console.log('✅ Cash drawer opened');
+          } catch (err) {
+            console.warn('⚠️ ลิ้นชักไม่เปิด - กรุณารัน print-server ก่อน');
           }
         }
       }, 300);
@@ -507,29 +490,7 @@ export default function POSPage() {
           <h1 className="text-xl lg:text-2xl font-bold flex items-center gap-2">
             <ShoppingCart className="w-6 h-6 lg:w-8 lg:h-8" /> รายการขาย
           </h1>
-          <div className="flex items-center gap-2">
-            {/* Printer Connection Button */}
-            {isPrinterSupported && (
-              <button
-                onClick={connectPrinter}
-                disabled={isConnecting}
-                className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${isPrinterConnected
-                  ? 'bg-green-500 text-white'
-                  : 'bg-yellow-500 text-yellow-900 hover:bg-yellow-400'
-                  }`}
-                title={isPrinterConnected ? 'เครื่องพิมพ์เชื่อมต่อแล้ว' : 'คลิกเพื่อเชื่อมต่อเครื่องพิมพ์'}
-              >
-                {isConnecting ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : isPrinterConnected ? (
-                  '🖨️ เชื่อมต่อแล้ว'
-                ) : (
-                  '🖨️ เชื่อมต่อ'
-                )}
-              </button>
-            )}
-            <p className="text-blue-200 text-xs lg:text-sm">{new Date().toLocaleDateString('th-TH')}</p>
-          </div>
+          <p className="text-blue-200 text-xs lg:text-sm">{new Date().toLocaleDateString('th-TH')}</p>
         </div>
 
         {/* แถบเลือกลูกค้า */}
