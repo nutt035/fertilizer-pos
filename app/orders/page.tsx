@@ -120,48 +120,128 @@ export default function OrdersPage() {
 
             {/* --- Receipt Modal (สำหรับพิมพ์) --- */}
             {isReceiptOpen && selectedOrder && (
-                <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-lg shadow-2xl overflow-hidden w-full max-w-sm max-h-[90vh] flex flex-col">
-                        <div className="bg-gray-100 p-3 border-b flex justify-between items-center print:hidden">
-                            <h3 className="font-bold text-gray-700">ตัวอย่างใบเสร็จ</h3>
-                            <button onClick={() => setIsReceiptOpen(false)} className="text-gray-500 hover:text-red-500"><XCircle /></button>
+                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                    <div className="bg-gray-800 rounded-xl shadow-2xl overflow-hidden w-full max-w-md max-h-[95vh] flex flex-col">
+                        {/* Header */}
+                        <div className="bg-gray-700 p-3 flex justify-between items-center print:hidden">
+                            <h3 className="font-bold text-white flex items-center gap-2">
+                                🧾 ตัวอย่างใบเสร็จ
+                            </h3>
+                            <button onClick={() => setIsReceiptOpen(false)} className="text-gray-300 hover:text-red-400">
+                                <XCircle />
+                            </button>
                         </div>
 
-                        <div className="overflow-y-auto p-4 flex-1 bg-gray-50 flex justify-center">
-                            {/* ใช้ Component ใบเสร็จเดียวกับหน้าขาย */}
-                            <ReceiptPrint
-                                isPreview={true}
-                                data={{
-                                    receiptNo: selectedOrder.receipt_no,
-                                    date: new Date(selectedOrder.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }),
-                                    time: new Date(selectedOrder.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
-                                    customerName: selectedOrder.customers?.name || 'ทั่วไป',
-                                    items: selectedOrder.order_items.map((item: any) => ({
-                                        name: item.products?.name || 'สินค้า',
-                                        quantity: item.quantity,
-                                        price: item.price,
-                                        unit: 'ชิ้น'
-                                    })),
-                                    totalAmount: selectedOrder.grand_total,
-                                    paymentMethod: selectedOrder.payment_method,
-                                    cashReceived: selectedOrder.cash_received,
-                                    changeAmount: selectedOrder.payment_method === 'cash' ? (selectedOrder.cash_received - selectedOrder.grand_total) : 0,
-                                    shopName: branchSettings.name,
-                                    shopAddress: branchSettings.address,
-                                    shopPhone: branchSettings.phone,
-                                    shopTaxId: branchSettings.tax_id,
-                                    receiptHeader: branchSettings.receipt_header,
-                                    receiptFooter: branchSettings.receipt_footer
+                        {/* Receipt Paper Look */}
+                        <div className="overflow-y-auto flex-1 p-6 flex justify-center bg-gray-900">
+                            <div
+                                className="bg-white shadow-xl w-full max-w-[300px] font-mono text-sm leading-tight"
+                                style={{
+                                    backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.02) 1px, rgba(0,0,0,0.02) 2px)',
+                                    borderTop: '8px dotted #ccc',
+                                    borderBottom: '8px dotted #ccc',
                                 }}
-                            />
+                            >
+                                <div className="p-4">
+                                    {/* Header ร้าน */}
+                                    <div className="text-center border-b-2 border-dashed border-gray-300 pb-3 mb-3">
+                                        <div className="text-lg font-bold">{branchSettings.name || 'ร้านค้า'}</div>
+                                        {branchSettings.address && <div className="text-xs text-gray-600">{branchSettings.address}</div>}
+                                        {branchSettings.phone && <div className="text-xs text-gray-600">โทร: {branchSettings.phone}</div>}
+                                        {branchSettings.tax_id && <div className="text-xs text-gray-600">TAX ID: {branchSettings.tax_id}</div>}
+                                    </div>
+
+                                    {/* ข้อมูลบิล */}
+                                    <div className="text-xs mb-3 border-b border-dashed border-gray-200 pb-2">
+                                        <div className="flex justify-between"><span>เลขที่:</span><span className="font-bold">{selectedOrder.receipt_no}</span></div>
+                                        <div className="flex justify-between"><span>วันที่:</span><span>{new Date(selectedOrder.created_at).toLocaleDateString('th-TH')}</span></div>
+                                        <div className="flex justify-between"><span>เวลา:</span><span>{new Date(selectedOrder.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</span></div>
+                                        <div className="flex justify-between"><span>ลูกค้า:</span><span>{selectedOrder.customers?.name || 'ทั่วไป'}</span></div>
+                                    </div>
+
+                                    {/* รายการสินค้า */}
+                                    <div className="text-xs mb-3">
+                                        {selectedOrder.order_items.map((item: any, idx: number) => (
+                                            <div key={idx} className="mb-1">
+                                                <div className="font-medium">{item.products?.name || 'สินค้า'}</div>
+                                                <div className="flex justify-between pl-2 text-gray-600">
+                                                    <span>{item.quantity} x {item.price.toLocaleString()}</span>
+                                                    <span>{(item.quantity * item.price).toLocaleString()}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* สรุปยอด */}
+                                    <div className="border-t-2 border-dashed border-gray-300 pt-2 mt-2">
+                                        <div className="flex justify-between text-base font-bold">
+                                            <span>รวมสุทธิ</span>
+                                            <span>{selectedOrder.grand_total.toLocaleString()} ฿</span>
+                                        </div>
+                                        {selectedOrder.payment_method === 'cash' && (
+                                            <>
+                                                <div className="flex justify-between text-xs text-gray-600">
+                                                    <span>รับมา</span>
+                                                    <span>{selectedOrder.cash_received?.toLocaleString()} ฿</span>
+                                                </div>
+                                                <div className="flex justify-between text-xs text-gray-600">
+                                                    <span>ทอน</span>
+                                                    <span>{(selectedOrder.cash_received - selectedOrder.grand_total).toLocaleString()} ฿</span>
+                                                </div>
+                                            </>
+                                        )}
+                                        <div className="flex justify-between text-xs mt-1">
+                                            <span>ชำระ</span>
+                                            <span className="font-medium">{selectedOrder.payment_method === 'cash' ? '💵 เงินสด' : '📲 เงินโอน'}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Footer */}
+                                    <div className="text-center text-xs text-gray-500 mt-4 pt-3 border-t border-dashed border-gray-200">
+                                        <div>*** {branchSettings.receipt_footer || 'ขอบคุณที่อุดหนุน'} ***</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="p-3 border-t bg-white print:hidden flex justify-end gap-2">
-                            <button onClick={() => setIsReceiptOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">ปิด</button>
-                            <button onClick={handlePrint} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 flex items-center gap-2"><Printer size={18} /> สั่งพิมพ์</button>
+                        {/* Buttons */}
+                        <div className="p-3 border-t border-gray-700 bg-gray-800 print:hidden flex justify-end gap-2">
+                            <button onClick={() => setIsReceiptOpen(false)} className="px-4 py-2 text-gray-300 hover:bg-gray-700 rounded-lg">ปิด</button>
+                            <button onClick={handlePrint} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                                <Printer size={18} /> สั่งพิมพ์
+                            </button>
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* ใบเสร็จสำหรับปริ้นจริง (ซ่อนไว้) */}
+            {selectedOrder && (
+                <ReceiptPrint
+                    isPreview={false}
+                    data={{
+                        receiptNo: selectedOrder.receipt_no,
+                        date: new Date(selectedOrder.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }),
+                        time: new Date(selectedOrder.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+                        customerName: selectedOrder.customers?.name || 'ทั่วไป',
+                        items: selectedOrder.order_items.map((item: any) => ({
+                            name: item.products?.name || 'สินค้า',
+                            quantity: item.quantity,
+                            price: item.price,
+                            unit: 'ชิ้น'
+                        })),
+                        totalAmount: selectedOrder.grand_total,
+                        paymentMethod: selectedOrder.payment_method,
+                        cashReceived: selectedOrder.cash_received,
+                        changeAmount: selectedOrder.payment_method === 'cash' ? (selectedOrder.cash_received - selectedOrder.grand_total) : 0,
+                        shopName: branchSettings.name,
+                        shopAddress: branchSettings.address,
+                        shopPhone: branchSettings.phone,
+                        shopTaxId: branchSettings.tax_id,
+                        receiptHeader: branchSettings.receipt_header,
+                        receiptFooter: branchSettings.receipt_footer
+                    }}
+                />
             )}
 
         </div>
