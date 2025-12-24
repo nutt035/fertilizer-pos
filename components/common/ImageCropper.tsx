@@ -3,7 +3,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
-import { X, Check, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
+import { X, Check } from 'lucide-react';
 
 interface ImageCropperProps {
     isOpen: boolean;
@@ -28,6 +28,7 @@ async function getCroppedImg(
     const scaleX = image.naturalWidth / image.width;
     const scaleY = image.naturalHeight / image.height;
 
+    // Output size (cropped area in natural resolution)
     canvas.width = crop.width * scaleX;
     canvas.height = crop.height * scaleY;
 
@@ -68,7 +69,7 @@ function centerAspectCrop(
         makeAspectCrop(
             {
                 unit: '%',
-                width: 90,
+                width: 80,
             },
             aspect,
             mediaWidth,
@@ -88,8 +89,6 @@ export default function ImageCropper({
 }: ImageCropperProps) {
     const [crop, setCrop] = useState<Crop>();
     const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
-    const [scale, setScale] = useState(1);
-    const [rotation, setRotation] = useState(0);
     const imgRef = useRef<HTMLImageElement>(null);
 
     // Initialize crop when image loads
@@ -97,14 +96,6 @@ export default function ImageCropper({
         const { width, height } = e.currentTarget;
         setCrop(centerAspectCrop(width, height, aspectRatio));
     }, [aspectRatio]);
-
-    // Reset when modal opens
-    useEffect(() => {
-        if (isOpen) {
-            setScale(1);
-            setRotation(0);
-        }
-    }, [isOpen]);
 
     // Handle crop completion
     const handleComplete = async () => {
@@ -142,7 +133,10 @@ export default function ImageCropper({
             <div className="bg-gray-900 rounded-xl shadow-2xl overflow-hidden w-full max-w-2xl max-h-[90vh] flex flex-col animate-scale-in">
                 {/* Header */}
                 <div className="bg-gray-800 text-white p-4 flex items-center justify-between">
-                    <h3 className="font-bold text-lg">✂️ ครอปรูปภาพ</h3>
+                    <div>
+                        <h3 className="font-bold text-lg">✂️ ครอปรูปภาพ</h3>
+                        <p className="text-xs text-gray-400">ลากกรอบเพื่อเลือกพื้นที่ที่ต้องการ</p>
+                    </div>
                     <button onClick={onCancel} className="hover:bg-gray-700 p-2 rounded-lg transition">
                         <X size={20} />
                     </button>
@@ -164,59 +158,30 @@ export default function ImageCropper({
                             alt="Crop preview"
                             onLoad={onImageLoad}
                             style={{
-                                transform: `scale(${scale}) rotate(${rotation}deg)`,
                                 maxHeight: '60vh',
+                                maxWidth: '100%',
                                 objectFit: 'contain'
                             }}
                         />
                     </ReactCrop>
                 </div>
 
-                {/* Controls */}
-                <div className="bg-gray-800 p-4 flex items-center justify-between">
-                    {/* Zoom & Rotate */}
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setScale(s => Math.max(0.5, s - 0.1))}
-                            className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition"
-                            title="ซูมออก"
-                        >
-                            <ZoomOut size={18} />
-                        </button>
-                        <span className="text-white text-sm w-12 text-center">{Math.round(scale * 100)}%</span>
-                        <button
-                            onClick={() => setScale(s => Math.min(3, s + 0.1))}
-                            className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition"
-                            title="ซูมเข้า"
-                        >
-                            <ZoomIn size={18} />
-                        </button>
-                        <button
-                            onClick={() => setRotation(r => (r + 90) % 360)}
-                            className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition ml-2"
-                            title="หมุน 90°"
-                        >
-                            <RotateCcw size={18} />
-                        </button>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={onCancel}
-                            className="px-4 py-2 text-gray-300 hover:bg-gray-700 rounded-lg font-medium transition"
-                        >
-                            ยกเลิก
-                        </button>
-                        <button
-                            onClick={handleComplete}
-                            className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold transition flex items-center gap-2"
-                        >
-                            <Check size={18} />
-                            ตกลง
-                            <span className="text-xs opacity-75 bg-white/20 px-2 py-0.5 rounded">Enter</span>
-                        </button>
-                    </div>
+                {/* Actions */}
+                <div className="bg-gray-800 p-4 flex items-center justify-end gap-3">
+                    <button
+                        onClick={onCancel}
+                        className="px-4 py-2 text-gray-300 hover:bg-gray-700 rounded-lg font-medium transition"
+                    >
+                        ยกเลิก
+                    </button>
+                    <button
+                        onClick={handleComplete}
+                        className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold transition flex items-center gap-2"
+                    >
+                        <Check size={18} />
+                        ตกลง
+                        <span className="text-xs opacity-75 bg-white/20 px-2 py-0.5 rounded">Enter</span>
+                    </button>
                 </div>
             </div>
         </div>

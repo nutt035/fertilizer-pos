@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { User, Search, X, Check, UserPlus } from 'lucide-react';
 import Modal from '../common/Modal';
 import { Customer } from '../../types';
+import { useToast } from '../common/Toast';
 
 interface CustomerSelectModalProps {
     isOpen: boolean;
@@ -26,6 +27,7 @@ export default function CustomerSelectModal({
     const [newName, setNewName] = useState('');
     const [newNickname, setNewNickname] = useState('');
     const [adding, setAdding] = useState(false);
+    const toast = useToast();
 
     const filteredCustomers = customers.filter(c =>
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -40,7 +42,7 @@ export default function CustomerSelectModal({
 
     const handleAdd = async () => {
         if (!newNickname && !newName) {
-            alert('กรุณาใส่ชื่อลูกค้า');
+            toast.warning('กรุณาใส่ชื่อลูกค้า');
             return;
         }
         setAdding(true);
@@ -49,7 +51,7 @@ export default function CustomerSelectModal({
             setNewName('');
             setNewNickname('');
         } catch (error: any) {
-            alert('เพิ่มลูกค้าไม่สำเร็จ: ' + error.message);
+            toast.error('เพิ่มลูกค้าไม่สำเร็จ: ' + error.message);
         } finally {
             setAdding(false);
         }

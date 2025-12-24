@@ -7,11 +7,13 @@ import {
     Users, Search, Plus, Phone, User, History,
     Edit, Save, X, ShoppingBag, ArrowLeft, Trash2
 } from 'lucide-react';
+import { useToast } from '../../components/common/Toast';
 
 export default function CustomersPage() {
     const [customers, setCustomers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const toast = useToast();
 
     // State สำหรับ Modal และ รายละเอียด
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -33,7 +35,7 @@ export default function CustomersPage() {
 
         if (error) {
             console.error('Error:', error);
-            alert('โหลดข้อมูลลูกค้าไม่สำเร็จ');
+            toast.error('โหลดข้อมูลลูกค้าไม่สำเร็จ');
         } else {
             setCustomers(data || []);
         }
@@ -74,7 +76,10 @@ export default function CustomersPage() {
     };
 
     const saveCustomer = async () => {
-        if (!formData.name) return alert('กรุณาใส่ชื่อลูกค้า');
+        if (!formData.name) {
+            toast.warning('กรุณาใส่ชื่อลูกค้า');
+            return;
+        }
 
         const customerData = {
             name: formData.name,
@@ -86,11 +91,17 @@ export default function CustomersPage() {
         if (formData.id) {
             // Update
             const { error } = await supabase.from('customers').update(customerData).eq('id', formData.id);
-            if (error) return alert('แก้ไขไม่สำเร็จ: ' + error.message);
+            if (error) {
+                toast.error('แก้ไขไม่สำเร็จ: ' + error.message);
+                return;
+            }
         } else {
             // Insert
             const { error } = await supabase.from('customers').insert(customerData);
-            if (error) return alert('เพิ่มไม่สำเร็จ: ' + error.message);
+            if (error) {
+                toast.error('เพิ่มไม่สำเร็จ: ' + error.message);
+                return;
+            }
         }
 
         setIsModalOpen(false);
@@ -99,7 +110,7 @@ export default function CustomersPage() {
         if (selectedCustomer && selectedCustomer.id === formData.id) {
             setSelectedCustomer({ ...selectedCustomer, ...customerData });
         }
-        alert('บันทึกเรียบร้อย');
+        toast.success('บันทึกเรียบร้อย');
     };
 
     // --- 4. ลบลูกค้า ---
@@ -107,7 +118,7 @@ export default function CustomersPage() {
         if (!selectedCustomer) return;
         if (confirm(`ยืนยันลบข้อมูลคุณ "${selectedCustomer.name}" ? \n(ประวัติการซื้อจะยังอยู่ แต่จะไม่แสดงชื่อลูกค้า)`)) {
             const { error } = await supabase.from('customers').delete().eq('id', selectedCustomer.id);
-            if (error) alert('ลบไม่ได้: ' + error.message);
+            if (error) toast.error('ลบไม่ได้: ' + error.message);
             else {
                 setSelectedCustomer(null);
                 fetchCustomers();

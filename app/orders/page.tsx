@@ -4,11 +4,13 @@ import React, { useState, useEffect } from 'react';
 import { supabase, CURRENT_BRANCH_ID } from '../../lib/supabase';
 import { Search, FileText, XCircle, Printer, Download, Eye } from 'lucide-react';
 import useBranchSettings from '../../hooks/useBranchSettings';
+import { useToast } from '../../components/common/Toast';
 import { ReceiptPrint, ReceiptData } from '../../components/pos';
 
 export default function OrdersPage() {
     // ข้อมูลร้าน/สาขา (แก้ไขได้ที่ Settings > ข้อมูลร้าน)
     const { settings: branchSettings } = useBranchSettings();
+    const toast = useToast();
 
     const [orders, setOrders] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -57,9 +59,9 @@ export default function OrdersPage() {
         });
 
         if (error || !data?.success) {
-            alert('ยกเลิกไม่สำเร็จ: ' + (error?.message || data?.message));
+            toast.error('ยกเลิกไม่สำเร็จ: ' + (error?.message || data?.message));
         } else {
-            alert('✅ ยกเลิกบิลเรียบร้อย');
+            toast.success('ยกเลิกบิลเรียบร้อย');
             fetchOrders();
         }
     };

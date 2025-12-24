@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Save, Upload, Tag, Barcode } from 'lucide-react';
 import Modal from '../common/Modal';
 import ImageCropper from '../common/ImageCropper';
+import { useToast } from '../common/Toast';
 
 interface MasterData {
     id: string;
@@ -64,6 +65,7 @@ export default function ProductModal({
     // State สำหรับ Image Cropper
     const [isCropperOpen, setIsCropperOpen] = useState(false);
     const [tempImageSrc, setTempImageSrc] = useState<string>('');
+    const toast = useToast();
 
     useEffect(() => {
         if (!isOpen) return;
@@ -130,7 +132,7 @@ export default function ProductModal({
 
     const handleSave = async () => {
         if (!formValue.name) {
-            alert('กรุณาใส่ชื่อสินค้า');
+            toast.warning('กรุณาใส่ชื่อสินค้า');
             return;
         }
         setUploading(true);
@@ -138,7 +140,7 @@ export default function ProductModal({
             await onSave(formValue, selectedFile);
             onClose();
         } catch (error: any) {
-            alert('เกิดข้อผิดพลาด: ' + error.message);
+            toast.error('เกิดข้อผิดพลาด: ' + error.message);
         } finally {
             setUploading(false);
         }

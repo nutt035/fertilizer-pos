@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Package } from 'lucide-react';
 import Modal from '../common/Modal';
+import { useToast } from '../common/Toast';
 
 interface StockInModalProps {
     isOpen: boolean;
@@ -19,6 +20,7 @@ export default function StockInModal({
 }: StockInModalProps) {
     const [quantity, setQuantity] = useState('');
     const [saving, setSaving] = useState(false);
+    const toast = useToast();
 
     useEffect(() => {
         if (isOpen) {
@@ -29,7 +31,7 @@ export default function StockInModal({
     const handleSave = async () => {
         const qty = Number(quantity);
         if (qty <= 0) {
-            alert('กรุณาใส่จำนวนที่ต้องการเติม');
+            toast.warning('กรุณาใส่จำนวนที่ต้องการเติม');
             return;
         }
         setSaving(true);
@@ -37,7 +39,7 @@ export default function StockInModal({
             await onSave(qty);
             onClose();
         } catch (error: any) {
-            alert('เกิดข้อผิดพลาด: ' + error.message);
+            toast.error('เกิดข้อผิดพลาด: ' + error.message);
         } finally {
             setSaving(false);
         }

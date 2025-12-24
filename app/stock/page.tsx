@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { supabase, CURRENT_BRANCH_ID } from '../../lib/supabase';
 import { Plus, Package, Edit, ArrowLeft, Trash2, Image as ImageIcon, Barcode, Scissors, Settings } from 'lucide-react';
+import { useToast } from '../../components/common/Toast';
 
 // Components
 import { SearchInput } from '../../components/common';
@@ -24,6 +25,7 @@ export default function StockPage() {
     const [products, setProducts] = useState<StockProduct[]>([]);
     const [categories, setCategories] = useState<MasterData[]>([]);
     const [units, setUnits] = useState<MasterData[]>([]);
+    const toast = useToast();
 
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -125,7 +127,7 @@ export default function StockPage() {
         }, { onConflict: 'parent_product_id,child_product_id' });
 
         if (error) throw error;
-        alert('บันทึกสูตรเรียบร้อย!');
+        toast.success('บันทึกสูตรเรียบร้อย!');
         fetchRecipes();
     };
 
@@ -191,7 +193,7 @@ export default function StockPage() {
             });
         }
 
-        alert(`ตัดแบ่งเรียบร้อย!\nหัก ${parentProduct.name} x${quantity}`);
+        toast.success(`ตัดแบ่งเรียบร้อย! หัก ${parentProduct.name} x${quantity}`);
         fetchProducts();
         focusScan();
     };
@@ -254,7 +256,7 @@ export default function StockPage() {
         // แนะนำให้ “เก็บเลขล้วน” เป็น barcode มาตรฐาน (กัน TH/อักขระแปลก)
         const code = raw.replace(/[^\d]/g, '');
         if (!code) {
-            alert('บาร์โค้ดที่สแกนมาไม่ใช่ตัวเลข (ลองตั้งให้สแกนเนอร์ส่งเลขล้วน หรือสลับ EN)');
+            toast.warning('บาร์โค้ดที่สแกนมาไม่ใช่ตัวเลข (ลองตั้งให้สแกนเนอร์ส่งเลขล้วน หรือสลับ EN)');
             setScanTerm('');
             focusScan();
             return;
@@ -366,7 +368,7 @@ export default function StockPage() {
             setPendingBarcode('');
         }
 
-        alert('บันทึกเรียบร้อย!');
+        toast.success('บันทึกเรียบร้อย!');
         setIsProductModalOpen(false);
         fetchProducts();
         focusScan();
@@ -375,7 +377,7 @@ export default function StockPage() {
     const handleDelete = async (id: string) => {
         if (confirm('ยืนยันที่จะลบสินค้านี้?')) {
             const { error } = await supabase.from('products').update({ is_active: false }).eq('id', id);
-            if (error) alert('ลบไม่ได้: ' + error.message);
+            if (error) toast.error('ลบไม่ได้: ' + error.message);
             else fetchProducts();
             focusScan();
         }
@@ -405,7 +407,7 @@ export default function StockPage() {
             ref_type: 'MANUAL'
         });
 
-        alert(`เติมสต็อกเรียบร้อย!`);
+        toast.success(`เติมสต็อกเรียบร้อย!`);
         setIsStockInModalOpen(false);
         fetchProducts();
         focusScan();
@@ -427,7 +429,7 @@ export default function StockPage() {
             );
         }
 
-        alert('บันทึกบาร์โค้ดเรียบร้อย!');
+        toast.success('บันทึกบาร์โค้ดเรียบร้อย!');
         setIsBarcodeModalOpen(false);
         fetchProducts();
         focusScan();

@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Barcode, Plus, Save, X, Wand2, Trash2, Loader2, Printer } from 'lucide-react';
 import Modal from '../common/Modal';
 import BarcodeGenerator from './BarcodeGenerator';
+import { useToast } from '../common/Toast';
 
 interface BarcodeManagerProps {
     isOpen: boolean;
@@ -48,6 +49,7 @@ export default function BarcodeManager({
     const [barcodes, setBarcodes] = useState<string[]>([]);
     const [newBarcode, setNewBarcode] = useState('');
     const [saving, setSaving] = useState(false);
+    const toast = useToast();
 
     useEffect(() => {
         if (!isOpen) return;
@@ -71,7 +73,7 @@ export default function BarcodeManager({
     const handleAddManual = () => {
         const res = tryAddBarcodeToState(newBarcode);
         if (!res.ok) {
-            if (res.reason === 'duplicate_in_product') alert('บาร์โค้ดนี้มีอยู่แล้วในสินค้านี้');
+            if (res.reason === 'duplicate_in_product') toast.warning('บาร์โค้ดนี้มีอยู่แล้วในสินค้านี้');
             setNewBarcode('');
             return;
         }
@@ -92,7 +94,7 @@ export default function BarcodeManager({
             code = genInternalBarcode13('200'); // prefix ร้าน
             guard++;
             if (guard > 50) {
-                alert('สร้างบาร์โค้ดไม่สำเร็จ ลองอีกครั้ง');
+                toast.error('สร้างบาร์โค้ดไม่สำเร็จ ลองอีกครั้ง');
                 return;
             }
         } while (barcodes.includes(code));
@@ -106,7 +108,7 @@ export default function BarcodeManager({
             onClose();
         } catch (err: any) {
             setBarcodes((prev) => prev.filter((b) => b !== code));
-            alert(err?.message || 'บันทึกบาร์โค้ดไม่สำเร็จ');
+            toast.error(err?.message || 'บันทึกบาร์โค้ดไม่สำเร็จ');
         } finally {
             setSaving(false);
         }
@@ -119,7 +121,7 @@ export default function BarcodeManager({
             await onSave(barcodes);
             onClose();
         } catch (err: any) {
-            alert(err?.message || 'บันทึกไม่สำเร็จ');
+            toast.error(err?.message || 'บันทึกไม่สำเร็จ');
         } finally {
             setSaving(false);
         }
@@ -136,7 +138,7 @@ export default function BarcodeManager({
         const svg = el?.querySelector('svg')?.outerHTML;
 
         if (!svg) {
-            alert('ยังสร้างภาพบาร์โค้ดไม่ทัน ลองใหม่อีกครั้ง');
+            toast.warning('ยังสร้างภาพบาร์โค้ดไม่ทัน ลองใหม่อีกครั้ง');
             return;
         }
 

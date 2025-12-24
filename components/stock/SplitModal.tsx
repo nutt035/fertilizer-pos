@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Scissors } from 'lucide-react';
 import Modal from '../common/Modal';
 import { SplitRecipe, StockProduct } from '../../types';
+import { useToast } from '../common/Toast';
 
 interface SplitModalProps {
     isOpen: boolean;
@@ -23,6 +24,7 @@ export default function SplitModal({
     const [parentProductId, setParentProductId] = useState('');
     const [quantity, setQuantity] = useState(1);
     const [splitting, setSplitting] = useState(false);
+    const toast = useToast();
 
     useEffect(() => {
         if (isOpen) {
@@ -39,11 +41,11 @@ export default function SplitModal({
 
     const handleExecute = async () => {
         if (!parentProductId) {
-            alert('กรุณาเลือกสินค้าแม่');
+            toast.warning('กรุณาเลือกสินค้าแม่');
             return;
         }
         if (quantity <= 0) {
-            alert('จำนวนต้องมากกว่า 0');
+            toast.warning('จำนวนต้องมากกว่า 0');
             return;
         }
         setSplitting(true);
@@ -51,7 +53,7 @@ export default function SplitModal({
             await onExecute(parentProductId, quantity);
             onClose();
         } catch (error: any) {
-            alert('เกิดข้อผิดพลาด: ' + error.message);
+            toast.error('เกิดข้อผิดพลาด: ' + error.message);
         } finally {
             setSplitting(false);
         }

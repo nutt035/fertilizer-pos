@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { supabase, CURRENT_BRANCH_ID } from '../../lib/supabase';
 import { ArrowLeft, FileSpreadsheet, FileText, Calendar, Download, TrendingUp, Package, Users } from 'lucide-react';
 import { exportToExcel, exportToPDF, ExportData, formatNumber } from '../../lib/export';
+import { useToast } from '../../components/common/Toast';
 
 type ReportType = 'sales' | 'products' | 'customers';
 
@@ -18,6 +19,7 @@ export default function ReportsPage() {
     const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0]);
     const [loading, setLoading] = useState(false);
     const [previewData, setPreviewData] = useState<ExportData | null>(null);
+    const toast = useToast();
 
     const fetchReportData = async () => {
         setLoading(true);
@@ -109,7 +111,7 @@ export default function ReportsPage() {
 
             setPreviewData(data);
         } catch (error: any) {
-            alert('โหลดข้อมูลไม่สำเร็จ: ' + error.message);
+            toast.error('โหลดข้อมูลไม่สำเร็จ: ' + error.message);
         } finally {
             setLoading(false);
         }

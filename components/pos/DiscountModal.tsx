@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Percent, DollarSign } from 'lucide-react';
 import Modal from '../common/Modal';
+import { useToast } from '../common/Toast';
 
 interface DiscountModalProps {
     isOpen: boolean;
@@ -25,6 +26,7 @@ export default function DiscountModal({
 }: DiscountModalProps) {
     const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('fixed');
     const [discountValue, setDiscountValue] = useState('');
+    const toast = useToast();
 
     useEffect(() => {
         if (isOpen) {
@@ -46,15 +48,15 @@ export default function DiscountModal({
     const handleApply = () => {
         const value = parseFloat(discountValue) || 0;
         if (value < 0) {
-            alert('ส่วนลดต้องไม่ติดลบ');
+            toast.warning('ส่วนลดต้องไม่ติดลบ');
             return;
         }
         if (discountType === 'percent' && value > 100) {
-            alert('ส่วนลดเป็น % ต้องไม่เกิน 100');
+            toast.warning('ส่วนลดเป็น % ต้องไม่เกิน 100');
             return;
         }
         if (discountType === 'fixed' && value > currentPrice) {
-            alert('ส่วนลดต้องไม่เกินราคาสินค้า');
+            toast.warning('ส่วนลดต้องไม่เกินราคาสินค้า');
             return;
         }
         onApply(value, discountType);
@@ -101,8 +103,8 @@ export default function DiscountModal({
                     <button
                         onClick={() => setDiscountType('fixed')}
                         className={`flex-1 py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition ${discountType === 'fixed'
-                                ? 'bg-pink-500 text-white'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            ? 'bg-pink-500 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
                     >
                         <DollarSign size={24} /> ลดเป็นบาท
@@ -110,8 +112,8 @@ export default function DiscountModal({
                     <button
                         onClick={() => setDiscountType('percent')}
                         className={`flex-1 py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition ${discountType === 'percent'
-                                ? 'bg-pink-500 text-white'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            ? 'bg-pink-500 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
                     >
                         <Percent size={24} /> ลดเป็น %

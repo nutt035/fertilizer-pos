@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Banknote, CreditCard, Loader2, Star } from 'lucide-react';
 import Modal from '../common/Modal';
 import { Customer } from '../../types';
+import { useToast } from '../common/Toast';
 
 interface PaymentModalProps {
     isOpen: boolean;
@@ -30,6 +31,7 @@ export default function PaymentModal({
     const [cashReceived, setCashReceived] = useState('');
     const [processing, setProcessing] = useState(false);
     const [usePoints, setUsePoints] = useState(false);
+    const toast = useToast();
 
     // Points calculation
     const customerPoints = selectedCustomer?.points || 0;
@@ -46,7 +48,7 @@ export default function PaymentModal({
             setPaymentMethod('cash');
             setUsePoints(false);
         } catch (error: any) {
-            alert('เกิดข้อผิดพลาด: ' + error.message);
+            toast.error('เกิดข้อผิดพลาด: ' + error.message);
         } finally {
             setProcessing(false);
         }

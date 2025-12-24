@@ -5,6 +5,7 @@ import { supabase, CURRENT_BRANCH_ID } from '../lib/supabase';
 import { CartItem, Customer } from '../types';
 import { Search, Trash2, RotateCcw, Banknote, ShoppingCart, Pencil, PauseCircle, Save, History, Loader2, User } from 'lucide-react';
 import useBranchSettings from '../hooks/useBranchSettings';
+import { useToast } from '../components/common/Toast';
 
 // Components
 import { SearchInput } from '../components/common';
@@ -30,6 +31,7 @@ interface HeldBill {
 export default function POSPage() {
   // --- ข้อมูลร้าน/สาขา (แก้ไขได้ที่ Settings > ข้อมูลร้าน) ---
   const { settings: branchSettings } = useBranchSettings();
+  const toast = useToast();
 
   // --- State: สินค้า & ตะกร้า ---
   const [products, setProducts] = useState<CartItem[]>([]);
@@ -158,7 +160,7 @@ export default function POSPage() {
 
     if (error) {
       console.error('Error products:', error);
-      alert('โหลดสินค้าไม่สำเร็จ: ' + error.message);
+      toast.error('โหลดสินค้าไม่สำเร็จ: ' + error.message);
     } else {
       const formatted: CartItem[] = data.map((p: any) => ({
         id: p.id,
@@ -214,7 +216,7 @@ export default function POSPage() {
     setCustomers(prev => [...prev, data]);
     setSelectedCustomer(data);
     setIsCustomerModalOpen(false);
-    alert(`ยินดีต้อนรับคุณ ${data.nickname || data.name}`);
+    toast.success(`ยินดีต้อนรับคุณ ${data.nickname || data.name}`);
     focusScan();
   };
 
@@ -244,14 +246,14 @@ export default function POSPage() {
 
     // 2) ถ้าไม่เจอแบบเป๊ะ: แจ้งเตือน (ร้านจริงต้องรู้ทันที)
     // (ถ้าคุณอยากให้ Enter แบบพิมพ์ชื่อแล้วเพิ่มสินค้าอัตโนมัติ เดี๋ยวทำโหมดเพิ่มเติมได้)
-    alert(`ไม่พบสินค้าจากบาร์โค้ด/รหัส: ${term}\nกรุณาตรวจสอบบาร์โค้ด หรือเพิ่มสินค้าใหม่`);
+    toast.warning(`ไม่พบสินค้าจากบาร์โค้ด/รหัส: ${term}`);
     setSearchTerm('');
     focusScan();
   };
 
   const handleProductClick = (product: CartItem) => {
     if (product.stock <= 0) {
-      alert('สินค้าหมด! กรุณาเติมของที่หน้าสต็อก');
+      toast.warning('สินค้าหมด! กรุณาเติมของที่หน้าสต็อก');
       focusScan();
       return;
     }
@@ -261,7 +263,7 @@ export default function POSPage() {
   const addToCart = (product: CartItem) => {
     const currentInCart = cart.find(item => item.id === product.id)?.quantity || 0;
     if (currentInCart + 1 > product.stock) {
-      alert('หยิบเกินจำนวนที่มีในสต็อก!');
+      toast.warning('หยิบเกินจำนวนที่มีในสต็อก!');
       focusScan();
       return;
     }
@@ -288,7 +290,7 @@ export default function POSPage() {
     }
     const product = products.find(p => p.id === productId);
     if (product && newQty > product.stock) {
-      alert('ของไม่พอ!');
+      toast.warning('ของไม่พอ!');
       focusScan();
       return;
     }
@@ -415,7 +417,7 @@ export default function POSPage() {
       await fetchProducts();
       focusScan();
     } catch (err: any) {
-      alert(err?.message || 'ชำระเงินไม่สำเร็จ');
+      toast.error(err?.message || 'ชำระเงินไม่สำเร็จ');
       focusScan();
     }
   };
@@ -504,9 +506,9 @@ export default function POSPage() {
                     method: 'POST',
                     mode: 'no-cors'
                   });
-                  alert('✅ ส่งคำสั่งเปิดลิ้นชักแล้ว!');
+                  toast.success('ส่งคำสั่งเปิดลิ้นชักแล้ว!');
                 } catch (err: any) {
-                  alert('❌ เปิดลิ้นชักไม่ได้: ' + err.message);
+                  toast.error('เปิดลิ้นชักไม่ได้: ' + err.message);
                 }
               }}
               className="px-2 py-1 bg-yellow-500 hover:bg-yellow-400 text-yellow-900 rounded-lg text-xs font-bold"

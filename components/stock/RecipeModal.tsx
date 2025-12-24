@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings, Save } from 'lucide-react';
 import Modal from '../common/Modal';
 import { SplitRecipe, StockProduct } from '../../types';
+import { useToast } from '../common/Toast';
 
 interface RecipeModalProps {
     isOpen: boolean;
@@ -24,6 +25,7 @@ export default function RecipeModal({
     const [childProductId, setChildProductId] = useState('');
     const [quantityPerParent, setQuantityPerParent] = useState(1);
     const [saving, setSaving] = useState(false);
+    const toast = useToast();
 
     useEffect(() => {
         if (isOpen) {
@@ -35,15 +37,15 @@ export default function RecipeModal({
 
     const handleSave = async () => {
         if (!parentProductId || !childProductId) {
-            alert('กรุณาเลือกสินค้าแม่และลูก');
+            toast.warning('กรุณาเลือกสินค้าแม่และลูก');
             return;
         }
         if (parentProductId === childProductId) {
-            alert('สินค้าแม่และลูกต้องไม่เหมือนกัน');
+            toast.warning('สินค้าแม่และลูกต้องไม่เหมือนกัน');
             return;
         }
         if (quantityPerParent <= 0) {
-            alert('จำนวนต่อ 1 แม่ต้องมากกว่า 0');
+            toast.warning('จำนวนต่อ 1 แม่ต้องมากกว่า 0');
             return;
         }
         setSaving(true);
@@ -53,7 +55,7 @@ export default function RecipeModal({
             setChildProductId('');
             setQuantityPerParent(1);
         } catch (error: any) {
-            alert('เกิดข้อผิดพลาด: ' + error.message);
+            toast.error('เกิดข้อผิดพลาด: ' + error.message);
         } finally {
             setSaving(false);
         }

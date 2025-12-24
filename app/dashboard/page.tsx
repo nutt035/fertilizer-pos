@@ -16,6 +16,7 @@ import {
   MessageCircle,
   Loader2,
 } from 'lucide-react';
+import { useToast } from '@/components/common/Toast';
 import {
   AreaChart,
   Area,
@@ -68,6 +69,7 @@ const monthLabelTH = (d: Date) =>
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [sendingLine, setSendingLine] = useState(false);
+  const toast = useToast();
 
   const [stats, setStats] = useState({
     todaySales: 0,
@@ -353,12 +355,12 @@ export default function DashboardPage() {
                 const res = await fetch('/api/cron/all-alerts');
                 const data = await res.json();
                 if (data.success) {
-                  alert('✅ ส่งแจ้งเตือนไป LINE เรียบร้อย!');
+                  toast.success('ส่งแจ้งเตือนไป LINE เรียบร้อย!');
                 } else {
-                  alert('❌ ส่งไม่สำเร็จ: ' + (data.error || 'ไม่มีข้อมูลหรือยังไม่ได้ตั้งค่า LINE'));
+                  toast.error('ส่งไม่สำเร็จ: ' + (data.error || 'ไม่มีข้อมูลหรือยังไม่ได้ตั้งค่า LINE'));
                 }
               } catch (e: any) {
-                alert('❌ Error: ' + e.message);
+                toast.error('Error: ' + e.message);
               } finally {
                 setSendingLine(false);
               }
