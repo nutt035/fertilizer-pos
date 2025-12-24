@@ -550,7 +550,69 @@ export default function StockPage() {
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            {/* Mobile Card View */}
+            <div className="lg:hidden space-y-3 mb-4">
+                {products.length === 0 && !loading && (
+                    <div className="text-center p-8 text-gray-400 bg-white rounded-xl">ยังไม่มีสินค้า</div>
+                )}
+                {filteredProducts.map((product) => (
+                    <div key={product.id} className="bg-white rounded-xl shadow-sm p-4 border">
+                        <div className="flex gap-3">
+                            {/* รูป */}
+                            <div className="shrink-0">
+                                {product.image_url ? (
+                                    <img src={product.image_url} alt="" className="w-16 h-16 object-cover bg-gray-100 rounded-lg border" />
+                                ) : (
+                                    <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400">
+                                        <ImageIcon size={20} />
+                                    </div>
+                                )}
+                            </div>
+                            {/* ข้อมูล */}
+                            <div className="flex-1 min-w-0">
+                                {product.sku && (
+                                    <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded font-bold mb-1">
+                                        {product.sku}
+                                    </span>
+                                )}
+                                <div className="font-bold text-gray-800 text-base truncate">{product.name}</div>
+                                <div className="text-sm text-gray-400">{product.category}</div>
+                            </div>
+                            {/* สต็อก */}
+                            <div className="text-right shrink-0">
+                                <div className={`text-2xl font-black ${(product.stock || 0) <= (product.min_stock_level ?? 5) ? 'text-red-500' : 'text-green-600'}`}>
+                                    {product.stock}
+                                </div>
+                                <div className="text-xs text-gray-400">{product.unit}</div>
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-center mt-3 pt-3 border-t">
+                            <div className="text-sm">
+                                <span className="text-gray-500">ทุน: {(product.cost || 0).toLocaleString()}</span>
+                                <span className="mx-2">•</span>
+                                <span className="font-bold text-blue-700">ขาย: {(product.price || 0).toLocaleString()}</span>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 mt-3">
+                            <button onClick={() => handleStockIn(product)} className="flex-1 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-bold flex items-center justify-center gap-1">
+                                <Plus size={16} /> เติมสต็อก
+                            </button>
+                            <button onClick={() => openBarcodeModal(product)} className="p-2 bg-indigo-100 text-indigo-700 rounded-lg" title="บาร์โค้ด">
+                                <Barcode size={18} />
+                            </button>
+                            <button onClick={() => openEditModal(product)} className="p-2 bg-gray-100 text-gray-700 rounded-lg" title="แก้ไข">
+                                <Edit size={18} />
+                            </button>
+                            <button onClick={() => handleDelete(product.id)} className="p-2 bg-red-50 text-red-400 rounded-lg" title="ลบ">
+                                <Trash2 size={18} />
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden lg:block bg-white rounded-xl shadow-md overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[800px]">
                         <thead className="bg-gray-50 text-gray-600 text-left border-b text-lg">

@@ -327,24 +327,24 @@ export default function SettingsPage() {
             )}
 
             {/* Tabs Menu */}
-            <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+            <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
                 <button
                     onClick={() => setActiveTab('BRANCH')}
-                    className={`px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition ${activeTab === 'BRANCH' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100'
+                    className={`px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition whitespace-nowrap ${activeTab === 'BRANCH' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100'
                         }`}
                 >
                     <Store size={18} /> ข้อมูลร้าน & สาขา
                 </button>
                 <button
                     onClick={() => setActiveTab('CATEGORY')}
-                    className={`px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition ${activeTab === 'CATEGORY' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100'
+                    className={`px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition whitespace-nowrap ${activeTab === 'CATEGORY' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100'
                         }`}
                 >
                     <Layers size={18} /> หมวดหมู่สินค้า
                 </button>
                 <button
                     onClick={() => setActiveTab('UNIT')}
-                    className={`px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition ${activeTab === 'UNIT' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100'
+                    className={`px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition whitespace-nowrap ${activeTab === 'UNIT' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100'
                         }`}
                 >
                     <Tag size={18} /> หน่วยนับ
@@ -664,8 +664,8 @@ export default function SettingsPage() {
                                             onDragOver={handleDragOver}
                                             onDrop={() => handleDrop(parent.id)}
                                             className={`flex justify-between items-center p-3 rounded-lg border transition cursor-move ${draggedId === parent.id
-                                                    ? 'bg-blue-100 border-blue-300 opacity-50'
-                                                    : 'bg-white hover:bg-gray-50 hover:shadow-sm'
+                                                ? 'bg-blue-100 border-blue-300 opacity-50'
+                                                : 'bg-white hover:bg-gray-50 hover:shadow-sm'
                                                 }`}
                                         >
                                             <div className="flex items-center gap-3">

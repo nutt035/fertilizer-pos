@@ -28,6 +28,73 @@ body {
   font-family: Pridi, Helvetica, sans-serif;
 }
 
+/* ========================================
+   MOBILE RESPONSIVE UTILITIES
+   ======================================== */
+
+/* Safe area padding for devices with notches */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mobile viewport height fix (for iOS Safari) */
+.h-screen-safe {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Touch-friendly minimum sizes on mobile */
+@media (max-width: 640px) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Larger tap areas for buttons */
+  button,
+  [role="button"],
+  a {
+    min-height: 44px;
+  }
+
+  /* Better input sizing on mobile */
+  input[type="text"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="email"],
+  select,
+  textarea {
+    font-size: 16px !important;
+    /* Prevents zoom on iOS */
+  }
+}
+
+/* Mobile card layout utility */
+@media (max-width: 640px) {
+  .mobile-card {
+    display: block;
+    padding: 12px;
+    border-radius: 12px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    margin-bottom: 8px;
+  }
+}
+
 /* Force darker text colors for better visibility */
 .text-gray-300,
 .text-gray-400 {

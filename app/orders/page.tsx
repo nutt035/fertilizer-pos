@@ -69,55 +69,118 @@ export default function OrdersPage() {
     const filteredOrders = orders.filter(o => o.receipt_no.toLowerCase().includes(searchTerm.toLowerCase()));
 
     return (
-        <div className="p-6">
+        <div className="min-h-screen bg-gray-100 p-3 sm:p-6">
             {/* Header */}
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold flex items-center gap-2"><FileText /> ประวัติการขาย</h1>
-            </div>
-
-            {/* Search */}
-            <div className="bg-white p-4 rounded-xl shadow-sm mb-4">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input type="text" placeholder="ค้นหาเลขที่ใบเสร็จ..." className="w-full pl-10 border p-2 rounded-lg focus:outline-blue-500" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 sm:mb-6">
+                <div className="flex items-center gap-3">
+                    <a href="/" className="flex items-center gap-2 bg-red-100 text-red-700 px-3 py-2 sm:px-4 sm:py-2 rounded-xl hover:bg-red-200 transition border-2 border-red-200">
+                        <span className="text-sm sm:text-base font-bold">← หน้าร้าน</span>
+                    </a>
+                    <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2"><FileText className="w-5 h-5 sm:w-6 sm:h-6" /> ประวัติการขาย</h1>
                 </div>
             </div>
 
-            {/* Table */}
-            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b text-gray-600 font-bold">
-                        <tr>
-                            <th className="p-4">ใบเสร็จ</th>
-                            <th className="p-4">เวลา</th>
-                            <th className="p-4">ลูกค้า</th>
-                            <th className="p-4 text-right">ยอดรวม</th>
-                            <th className="p-4 text-center">สถานะ</th>
-                            <th className="p-4 text-center">จัดการ</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredOrders.map(order => (
-                            <tr key={order.id} className={`border-b hover:bg-gray-50 transition ${order.status === 'VOID' ? 'bg-red-50' : ''}`}>
-                                <td className="p-4 font-mono font-bold text-blue-600 cursor-pointer hover:underline" onClick={() => openReceipt(order)}>{order.receipt_no}</td>
-                                <td className="p-4 text-sm text-gray-500">{new Date(order.created_at).toLocaleString('th-TH')}</td>
-                                <td className="p-4">{order.customers?.name || 'ลูกค้าทั่วไป'}</td>
-                                <td className="p-4 text-right font-bold">{order.grand_total.toLocaleString()}</td>
-                                <td className="p-4 text-center">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${order.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 'bg-red-200 text-red-700'}`}>
-                                        {order.status === 'COMPLETED' ? 'สำเร็จ' : 'ยกเลิก'}
-                                    </span>
-                                </td>
-                                <td className="p-4 text-center flex justify-center gap-2">
-                                    <button onClick={() => openReceipt(order)} className="text-gray-500 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg" title="ดู/พิมพ์"><Printer size={18} /></button>
-                                    {order.status === 'COMPLETED' && (
-                                        <button onClick={() => handleVoid(order.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg" title="ยกเลิกบิล"><XCircle size={18} /></button>
-                                    )}
-                                </td>
+            {/* Search */}
+            <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm mb-4">
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input
+                        type="text"
+                        placeholder="ค้นหาเลขที่ใบเสร็จ..."
+                        className="w-full pl-10 border p-3 rounded-lg focus:outline-blue-500 text-base"
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                    />
+                </div>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="sm:hidden space-y-3">
+                {filteredOrders.map(order => (
+                    <div
+                        key={order.id}
+                        className={`bg-white rounded-xl shadow-sm p-4 ${order.status === 'VOID' ? 'border-2 border-red-200 bg-red-50' : ''}`}
+                    >
+                        <div className="flex justify-between items-start mb-3">
+                            <div>
+                                <div
+                                    className="font-mono font-bold text-blue-600 text-lg cursor-pointer"
+                                    onClick={() => openReceipt(order)}
+                                >
+                                    {order.receipt_no}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                    {new Date(order.created_at).toLocaleString('th-TH')}
+                                </div>
+                            </div>
+                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${order.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 'bg-red-200 text-red-700'}`}>
+                                {order.status === 'COMPLETED' ? 'สำเร็จ' : 'ยกเลิก'}
+                            </span>
+                        </div>
+                        <div className="flex justify-between items-center mb-3">
+                            <span className="text-gray-600">{order.customers?.name || 'ลูกค้าทั่วไป'}</span>
+                            <span className="text-xl font-bold text-gray-800">฿{order.grand_total.toLocaleString()}</span>
+                        </div>
+                        <div className="flex gap-2 pt-2 border-t">
+                            <button
+                                onClick={() => openReceipt(order)}
+                                className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 text-blue-600 rounded-lg font-bold text-sm"
+                            >
+                                <Printer size={16} /> ดู/พิมพ์
+                            </button>
+                            {order.status === 'COMPLETED' && (
+                                <button
+                                    onClick={() => handleVoid(order.id)}
+                                    className="flex-1 flex items-center justify-center gap-2 py-2 bg-red-50 text-red-600 rounded-lg font-bold text-sm"
+                                >
+                                    <XCircle size={16} /> ยกเลิก
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                ))}
+                {filteredOrders.length === 0 && (
+                    <div className="text-center text-gray-400 py-10">ไม่พบรายการ</div>
+                )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden sm:block bg-white rounded-xl shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left min-w-[600px]">
+                        <thead className="bg-gray-50 border-b text-gray-600 font-bold">
+                            <tr>
+                                <th className="p-4">ใบเสร็จ</th>
+                                <th className="p-4">เวลา</th>
+                                <th className="p-4">ลูกค้า</th>
+                                <th className="p-4 text-right">ยอดรวม</th>
+                                <th className="p-4 text-center">สถานะ</th>
+                                <th className="p-4 text-center">จัดการ</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {filteredOrders.map(order => (
+                                <tr key={order.id} className={`border-b hover:bg-gray-50 transition ${order.status === 'VOID' ? 'bg-red-50' : ''}`}>
+                                    <td className="p-4 font-mono font-bold text-blue-600 cursor-pointer hover:underline" onClick={() => openReceipt(order)}>{order.receipt_no}</td>
+                                    <td className="p-4 text-sm text-gray-500">{new Date(order.created_at).toLocaleString('th-TH')}</td>
+                                    <td className="p-4">{order.customers?.name || 'ลูกค้าทั่วไป'}</td>
+                                    <td className="p-4 text-right font-bold">{order.grand_total.toLocaleString()}</td>
+                                    <td className="p-4 text-center">
+                                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${order.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 'bg-red-200 text-red-700'}`}>
+                                            {order.status === 'COMPLETED' ? 'สำเร็จ' : 'ยกเลิก'}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 text-center flex justify-center gap-2">
+                                        <button onClick={() => openReceipt(order)} className="text-gray-500 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg" title="ดู/พิมพ์"><Printer size={18} /></button>
+                                        {order.status === 'COMPLETED' && (
+                                            <button onClick={() => handleVoid(order.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg" title="ยกเลิกบิล"><XCircle size={18} /></button>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {/* --- Receipt Modal (สำหรับพิมพ์) --- */}
