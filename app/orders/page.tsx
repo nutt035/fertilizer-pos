@@ -291,6 +291,7 @@ export default function OrdersPage() {
                         customerName: selectedOrder.customers?.name || 'ทั่วไป',
                         items: selectedOrder.order_items.map((item: any) => ({
                             name: item.products?.name || 'สินค้า',
+                            description: item.products?.description,  // รายละเอียดสินค้า
                             quantity: item.quantity,
                             price: item.price,
                             unit: 'ชิ้น'

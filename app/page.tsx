@@ -381,6 +381,7 @@ export default function POSPage() {
         customerName: selectedCustomer ? (selectedCustomer.nickname || selectedCustomer.name) : undefined,
         items: cart.map(item => ({
           name: item.name,
+          description: item.description,  // รายละเอียดสินค้า
           quantity: item.quantity,
           price: item.price,
           unit: item.unit
