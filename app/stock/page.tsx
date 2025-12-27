@@ -31,6 +31,7 @@ export default function StockPage() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
+    const [selectedSubcategory, setSelectedSubcategory] = useState('ทั้งหมด');
     const [showLowStockOnly, setShowLowStockOnly] = useState(false);
 
     // ✅ Scan input state
@@ -218,6 +219,7 @@ export default function StockPage() {
             .select(`
         *,
         master_categories (name),
+        master_subcategories (id, name),
         master_units (name),
         inventory (quantity),
         product_barcodes (barcode)
@@ -233,6 +235,7 @@ export default function StockPage() {
                 ...p,
                 stock: p.inventory?.[0]?.quantity || 0,
                 category: p.master_categories?.name || '-',
+                subcategory: p.master_subcategories?.name || '',
                 unit: p.master_units?.name || '-',
                 barcode: p.product_barcodes?.[0]?.barcode || '',
                 product_barcodes: p.product_barcodes
@@ -473,7 +476,8 @@ export default function StockPage() {
             (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
             (p.barcode && p.barcode.includes(searchTerm));
         const matchCategory = selectedCategory === 'ทั้งหมด' || p.category === selectedCategory;
-        return matchSearch && matchCategory;
+        const matchSubcategory = selectedSubcategory === 'ทั้งหมด' || (p as any).subcategory === selectedSubcategory;
+        return matchSearch && matchCategory && matchSubcategory;
     });
 
     if (showLowStockOnly) {
@@ -530,11 +534,11 @@ export default function StockPage() {
             </div>
 
             {/* Category Filter */}
-            <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
+            <div className="flex gap-2 mb-2 overflow-x-auto pb-2 scrollbar-hide">
                 {['ทั้งหมด', ...categories.map(c => c.name)].map(cat => (
                     <button
                         key={cat}
-                        onClick={() => { setSelectedCategory(cat); focusScan(); }}
+                        onClick={() => { setSelectedCategory(cat); setSelectedSubcategory('ทั้งหมด'); focusScan(); }}
                         className={`px-4 py-2 lg:px-5 lg:py-2.5 rounded-xl text-sm lg:text-base font-bold whitespace-nowrap transition shadow-sm ${selectedCategory === cat
                             ? 'bg-blue-600 text-white transform scale-105'
                             : 'bg-white text-gray-500 border hover:bg-gray-50'
@@ -544,6 +548,30 @@ export default function StockPage() {
                     </button>
                 ))}
             </div>
+
+            {/* Subcategory Filter - แสดงเฉพาะเมื่อเลือกหมวดหมู่หลักแล้วและมีหมวดหมู่ย่อย */}
+            {selectedCategory !== 'ทั้งหมด' && (() => {
+                const selectedCat = categories.find(c => c.name === selectedCategory);
+                const availableSubs = selectedCat ? subcategories.filter(s => s.category_id === selectedCat.id) : [];
+                if (availableSubs.length === 0) return null;
+
+                return (
+                    <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
+                        {['ทั้งหมด', ...availableSubs.map(s => s.name)].map(sub => (
+                            <button
+                                key={sub}
+                                onClick={() => { setSelectedSubcategory(sub); focusScan(); }}
+                                className={`px-3 py-1.5 lg:px-5 lg:py-2 rounded-lg text-sm lg:text-base font-bold whitespace-nowrap transition shadow-sm ${selectedSubcategory === sub
+                                    ? 'bg-purple-600 text-white transform scale-105'
+                                    : 'bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100'
+                                    }`}
+                            >
+                                {sub}
+                            </button>
+                        ))}
+                    </div>
+                );
+            })()}
 
             <div className="flex flex-col lg:flex-row justify-between items-center mb-4 gap-3">
                 <div className="flex items-center gap-3 w-full lg:w-auto">
@@ -570,9 +598,6 @@ export default function StockPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2 w-full lg:w-auto">
-                    <Link href="/settings" className="flex-1 lg:flex-none bg-gray-500 text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-600 shadow-md text-lg">
-                        <Layers size={24} /> หมวดหมู่ย่อย
-                    </Link>
                     <button onClick={() => setIsSplitModalOpen(true)} className="flex-1 lg:flex-none bg-orange-500 text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-orange-600 shadow-md text-lg">
                         <Scissors size={24} /> ตัดแบ่งของขาย
                     </button>
