@@ -14,16 +14,18 @@ ADD COLUMN IF NOT EXISTS subcategory_id UUID REFERENCES public.master_subcategor
 -- เปิดใช้ RLS
 ALTER TABLE public.master_subcategories ENABLE ROW LEVEL SECURITY;
 
--- Policy: อนุญาตให้ทุกคนอ่านได้
-CREATE POLICY "Enable read access for all users" ON public.master_subcategories
-FOR SELECT TO authenticated, anon
-USING (true);
+-- ลบ policy เก่า (ถ้ามี) แล้วสร้างใหม่
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.master_subcategories;
+DROP POLICY IF EXISTS "Enable all access for authenticated users" ON public.master_subcategories;
+DROP POLICY IF EXISTS "Allow all operations for everyone" ON public.master_subcategories;
 
--- Policy: อนุญาตให้ authenticated users แก้ไขได้
-CREATE POLICY "Enable all access for authenticated users" ON public.master_subcategories
-FOR ALL TO authenticated
-USING (true);
+-- Policy: อนุญาตให้ทุกคน (anon + authenticated) ทำทุก operation ได้
+CREATE POLICY "Allow all operations for everyone" ON public.master_subcategories
+FOR ALL TO anon, authenticated
+USING (true)
+WITH CHECK (true);
 
 -- สร้าง index เพื่อประสิทธิภาพ
 CREATE INDEX IF NOT EXISTS idx_subcategories_category_id ON public.master_subcategories(category_id);
 CREATE INDEX IF NOT EXISTS idx_products_subcategory_id ON public.products(subcategory_id);
+

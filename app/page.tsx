@@ -40,7 +40,9 @@ export default function POSPage() {
   const [heldBills, setHeldBills] = useState<HeldBill[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
+  const [selectedSubcategory, setSelectedSubcategory] = useState('ทั้งหมด');
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [subcategories, setSubcategories] = useState<{ id: string; name: string; category_id: string }[]>([]);
 
   // --- Refs: ช่องยิงบาร์โค้ด (ล็อกโฟกัส) ---
   const scanInputRef = useRef<HTMLInputElement>(null);
@@ -140,6 +142,7 @@ export default function POSPage() {
     fetchProducts();
     fetchCustomers();
     fetchCategories();
+    fetchSubcategories();
     // ให้โฟกัสช่องยิงตั้งแต่เข้า page
     focusScan();
   }, []);
@@ -151,6 +154,7 @@ export default function POSPage() {
       .select(`
                 *,
                 master_categories (name),
+                master_subcategories (id, name),
                 master_units (name),
                 product_barcodes (barcode),
                 inventory (quantity)
@@ -170,10 +174,12 @@ export default function POSPage() {
         cost: p.cost,
         price: p.price,
         category_id: p.category_id,
+        subcategory_id: p.subcategory_id,
         unit_id: p.unit_id,
         is_active: p.is_active,
         quantity: 0,
         category: p.master_categories?.name || 'ทั่วไป',
+        subcategory: p.master_subcategories?.name || '',
         unit: p.master_units?.name || 'ชิ้น',
         stock: p.inventory?.[0]?.quantity || 0,
         barcode: p.product_barcodes?.[0]?.barcode || '',
@@ -195,6 +201,12 @@ export default function POSPage() {
     const { data, error } = await supabase.from('master_categories').select('*').order('sort_order');
     if (error) console.error('Error categories:', error);
     else setCategories(data || []);
+  };
+
+  const fetchSubcategories = async () => {
+    const { data, error } = await supabase.from('master_subcategories').select('*').order('name');
+    if (error) console.error('Error subcategories:', error);
+    else setSubcategories(data || []);
   };
 
   // --- 2. Customer Logic ---
@@ -481,7 +493,8 @@ export default function POSPage() {
       (p.barcode && p.barcode.includes(searchTerm)) ||
       p.product_barcodes?.some((b: any) => b.barcode.includes(searchTerm));
     const matchCategory = selectedCategory === 'ทั้งหมด' || p.category === selectedCategory;
-    return matchSearch && matchCategory;
+    const matchSubcategory = selectedSubcategory === 'ทั้งหมด' || (p as any).subcategory === selectedSubcategory;
+    return matchSearch && matchCategory && matchSubcategory;
   });
 
   return (
@@ -651,11 +664,11 @@ export default function POSPage() {
           </div>
         </div>
 
-        <div className="flex gap-2 mb-2 lg:mb-4 overflow-x-auto pb-2 scrollbar-hide">
+        <div className="flex gap-2 mb-2 lg:mb-3 overflow-x-auto pb-2 scrollbar-hide">
           {['ทั้งหมด', ...categories.map(c => c.name)].map(cat => (
             <button
               key={cat}
-              onClick={() => { setSelectedCategory(cat); focusScan(); }}
+              onClick={() => { setSelectedCategory(cat); setSelectedSubcategory('ทั้งหมด'); focusScan(); }}
               className={`px-4 py-2 lg:px-6 lg:py-3 rounded-xl text-base lg:text-xl font-bold whitespace-nowrap transition shadow-sm ${selectedCategory === cat
                 ? 'bg-blue-600 text-white transform scale-105'
                 : 'bg-white text-gray-500 border hover:bg-gray-50'
@@ -665,6 +678,30 @@ export default function POSPage() {
             </button>
           ))}
         </div>
+
+        {/* หมวดหมู่ย่อย - แสดงเฉพาะเมื่อเลือกหมวดหมู่หลักแล้วและมีหมวดหมู่ย่อย */}
+        {selectedCategory !== 'ทั้งหมด' && (() => {
+          const selectedCat = categories.find(c => c.name === selectedCategory);
+          const availableSubs = selectedCat ? subcategories.filter(s => s.category_id === selectedCat.id) : [];
+          if (availableSubs.length === 0) return null;
+
+          return (
+            <div className="flex gap-2 mb-2 lg:mb-4 overflow-x-auto pb-2 scrollbar-hide">
+              {['ทั้งหมด', ...availableSubs.map(s => s.name)].map(sub => (
+                <button
+                  key={sub}
+                  onClick={() => { setSelectedSubcategory(sub); focusScan(); }}
+                  className={`px-3 py-1.5 lg:px-5 lg:py-2 rounded-lg text-sm lg:text-base font-bold whitespace-nowrap transition shadow-sm ${selectedSubcategory === sub
+                    ? 'bg-purple-600 text-white transform scale-105'
+                    : 'bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100'
+                    }`}
+                >
+                  {sub}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
 
         <div className="flex-1 overflow-y-auto pr-1 lg:pr-2 pb-20">
           {loading ? (

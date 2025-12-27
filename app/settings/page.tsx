@@ -34,7 +34,7 @@ type BranchRow = {
 };
 
 export default function SettingsPage() {
-    const [activeTab, setActiveTab] = useState<'BRANCH' | 'CATEGORY' | 'UNIT'>('BRANCH');
+    const [activeTab, setActiveTab] = useState<'BRANCH' | 'CATEGORY' | 'SUBCATEGORY' | 'UNIT'>('BRANCH');
     const [loading, setLoading] = useState(false);
     const [notice, setNotice] = useState<Notice>(null);
 
@@ -63,8 +63,10 @@ export default function SettingsPage() {
 
     // --- Master Data State ---
     const [categories, setCategories] = useState<any[]>([]);
+    const [subcategories, setSubcategories] = useState<any[]>([]);
     const [units, setUnits] = useState<any[]>([]);
     const [newItemName, setNewItemName] = useState('');
+    const [newSubcategoryParent, setNewSubcategoryParent] = useState<string>('');
 
     // State for sub-category
     const [newParentId, setNewParentId] = useState<string | null>(null);
@@ -116,8 +118,10 @@ export default function SettingsPage() {
     const fetchMasterData = async () => {
         // เรียงหมวดหมู่ตาม sort_order
         const { data: cats } = await supabase.from('master_categories').select('*').order('sort_order');
+        const { data: subs } = await supabase.from('master_subcategories').select('*').order('name');
         const { data: uns } = await supabase.from('master_units').select('*').order('name');
         setCategories(cats || []);
+        setSubcategories(subs || []);
         setUnits(uns || []);
     };
 
@@ -287,6 +291,37 @@ export default function SettingsPage() {
         }
     };
 
+    // จัดการหมวดหมู่ย่อย (Subcategory)
+    const handleAddSubcategory = async () => {
+        setNotice(null);
+        if (!newItemName.trim()) return setNotice({ type: 'warn', message: 'กรุณากรอกชื่อหมวดหมู่ย่อย' });
+        if (!newSubcategoryParent) return setNotice({ type: 'warn', message: 'กรุณาเลือกหมวดหมู่หลัก' });
+
+        const { error } = await supabase.from('master_subcategories').insert({
+            name: newItemName.trim(),
+            category_id: newSubcategoryParent
+        });
+
+        if (error) {
+            setNotice({ type: 'error', message: `เพิ่มไม่สำเร็จ: ${error.message}` });
+        } else {
+            setNewItemName('');
+            setNotice({ type: 'success', message: '✅ เพิ่มหมวดหมู่ย่อยเรียบร้อย' });
+            fetchMasterData();
+        }
+    };
+
+    const handleDeleteSubcategory = async (id: string) => {
+        setNotice(null);
+        if (!confirm('ต้องการลบหมวดหมู่ย่อยนี้?')) return;
+        const { error } = await supabase.from('master_subcategories').delete().eq('id', id);
+        if (error) setNotice({ type: 'error', message: `ลบไม่สำเร็จ: ${error.message}` });
+        else {
+            setNotice({ type: 'success', message: '🗑️ ลบหมวดหมู่ย่อยเรียบร้อย' });
+            fetchMasterData();
+        }
+    };
+
     const filteredBranches = useMemo(() => {
         const q = branchSearch.trim().toLowerCase();
         if (!q) return allBranches;
@@ -340,7 +375,14 @@ export default function SettingsPage() {
                     className={`px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition whitespace-nowrap ${activeTab === 'CATEGORY' ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100'
                         }`}
                 >
-                    <Layers size={18} /> หมวดหมู่สินค้า
+                    <Layers size={18} /> หมวดหมู่หลัก
+                </button>
+                <button
+                    onClick={() => setActiveTab('SUBCATEGORY')}
+                    className={`px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition whitespace-nowrap ${activeTab === 'SUBCATEGORY' ? 'bg-purple-600 text-white shadow-lg' : 'bg-white text-gray-600 hover:bg-gray-100'
+                        }`}
+                >
+                    <Layers size={18} /> หมวดหมู่ย่อย
                 </button>
                 <button
                     onClick={() => setActiveTab('UNIT')}
@@ -750,6 +792,87 @@ export default function SettingsPage() {
                                 )}
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* --- Tab SUBCATEGORY: หมวดหมู่ย่อย --- */}
+                {activeTab === 'SUBCATEGORY' && (
+                    <div className="max-w-2xl">
+                        <h2 className="text-lg font-bold border-b pb-2 text-gray-700 flex items-center gap-2 mb-4">
+                            <Layers /> จัดการหมวดหมู่ย่อย
+                        </h2>
+
+                        {/* Add new subcategory */}
+                        <div className="flex flex-col gap-3 mb-6 bg-purple-50 p-4 rounded-xl border border-purple-100">
+                            <div className="flex gap-2">
+                                <select
+                                    value={newSubcategoryParent}
+                                    onChange={(e) => setNewSubcategoryParent(e.target.value)}
+                                    className="border-2 border-purple-100 p-3 rounded-xl bg-white min-w-[150px]"
+                                >
+                                    <option value="">-- เลือกหมวดหมู่หลัก --</option>
+                                    {categories.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                                <input
+                                    type="text"
+                                    placeholder="ชื่อหมวดหมู่ย่อยใหม่..."
+                                    className="flex-1 border-2 border-purple-100 p-3 rounded-xl focus:border-purple-500 outline-none"
+                                    value={newItemName}
+                                    onChange={(e) => setNewItemName(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleAddSubcategory()}
+                                />
+                                <button
+                                    onClick={handleAddSubcategory}
+                                    className="bg-purple-600 text-white px-4 rounded-xl font-bold hover:bg-purple-700 flex items-center gap-2"
+                                >
+                                    <Plus /> เพิ่ม
+                                </button>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                                * หมวดหมู่ย่อยจะแสดงใน dropdown ตอนเพิ่ม/แก้ไขสินค้า (filter ตามหมวดหมู่หลักที่เลือก)
+                            </div>
+                        </div>
+
+                        {/* Subcategory list grouped by category */}
+                        <div className="space-y-4 max-h-[500px] overflow-y-auto">
+                            {categories.map(cat => {
+                                const subs = subcategories.filter(s => s.category_id === cat.id);
+                                if (subs.length === 0) return null;
+
+                                return (
+                                    <div key={cat.id} className="border rounded-xl overflow-hidden">
+                                        <div className="bg-gray-100 px-4 py-2 font-bold text-gray-700 flex items-center gap-2">
+                                            <Layers size={16} /> {cat.name}
+                                            <span className="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full ml-auto">
+                                                {subs.length} รายการ
+                                            </span>
+                                        </div>
+                                        <div className="divide-y">
+                                            {subs.map(sub => (
+                                                <div key={sub.id} className="flex justify-between items-center p-3 hover:bg-gray-50">
+                                                    <span className="text-gray-700">{sub.name}</span>
+                                                    <button
+                                                        onClick={() => handleDeleteSubcategory(sub.id)}
+                                                        className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+
+                            {subcategories.length === 0 && (
+                                <div className="text-center text-gray-400 py-8">
+                                    ยังไม่มีหมวดหมู่ย่อย<br />
+                                    <span className="text-sm">เพิ่มได้โดยเลือกหมวดหมู่หลักแล้วพิมพ์ชื่อด้านบน</span>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
