@@ -71,6 +71,21 @@ export default function SettingsPage() {
     // State for sub-category
     const [newParentId, setNewParentId] = useState<string | null>(null);
 
+    // State for collapsible subcategory groups
+    const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+    const toggleCategoryExpand = (catId: string) => {
+        setExpandedCategories(prev => {
+            const next = new Set(prev);
+            if (next.has(catId)) {
+                next.delete(catId);
+            } else {
+                next.add(catId);
+            }
+            return next;
+        });
+    };
+
     // State for drag-drop
     const [draggedId, setDraggedId] = useState<string | null>(null);
 
@@ -674,23 +689,6 @@ export default function SettingsPage() {
                                     <Plus /> เพิ่ม
                                 </button>
                             </div>
-
-                            {/* Parent category selector (only for categories) */}
-                            {activeTab === 'CATEGORY' && (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm text-gray-500">เพิ่มเป็นหมวดหมู่ย่อยของ:</span>
-                                    <select
-                                        value={newParentId || ''}
-                                        onChange={(e) => setNewParentId(e.target.value || null)}
-                                        className="border rounded-lg px-3 py-2 text-sm bg-white"
-                                    >
-                                        <option value="">-- หมวดหมู่หลัก --</option>
-                                        {categories.filter(c => !c.parent_id).map(c => (
-                                            <option key={c.id} value={c.id}>{c.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
                         </div>
 
                         {/* Category list with drag-drop */}
@@ -836,32 +834,43 @@ export default function SettingsPage() {
                         </div>
 
                         {/* Subcategory list grouped by category */}
-                        <div className="space-y-4 max-h-[500px] overflow-y-auto">
+                        <div className="space-y-2 max-h-[500px] overflow-y-auto">
                             {categories.map(cat => {
                                 const subs = subcategories.filter(s => s.category_id === cat.id);
                                 if (subs.length === 0) return null;
+                                const isExpanded = expandedCategories.has(cat.id);
 
                                 return (
                                     <div key={cat.id} className="border rounded-xl overflow-hidden">
-                                        <div className="bg-gray-100 px-4 py-2 font-bold text-gray-700 flex items-center gap-2">
+                                        {/* Clickable header */}
+                                        <button
+                                            onClick={() => toggleCategoryExpand(cat.id)}
+                                            className="w-full bg-gray-100 px-4 py-3 font-bold text-gray-700 flex items-center gap-2 hover:bg-gray-200 transition"
+                                        >
+                                            <span className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+                                                ▼
+                                            </span>
                                             <Layers size={16} /> {cat.name}
                                             <span className="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full ml-auto">
                                                 {subs.length} รายการ
                                             </span>
-                                        </div>
-                                        <div className="divide-y">
-                                            {subs.map(sub => (
-                                                <div key={sub.id} className="flex justify-between items-center p-3 hover:bg-gray-50">
-                                                    <span className="text-gray-700">{sub.name}</span>
-                                                    <button
-                                                        onClick={() => handleDeleteSubcategory(sub.id)}
-                                                        className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg"
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
+                                        </button>
+                                        {/* Collapsible content */}
+                                        {isExpanded && (
+                                            <div className="divide-y bg-white">
+                                                {subs.map(sub => (
+                                                    <div key={sub.id} className="flex justify-between items-center p-3 hover:bg-gray-50">
+                                                        <span className="text-gray-700 pl-6">{sub.name}</span>
+                                                        <button
+                                                            onClick={() => handleDeleteSubcategory(sub.id)}
+                                                            className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}

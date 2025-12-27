@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { supabase, CURRENT_BRANCH_ID } from '../../lib/supabase';
-import { Plus, Package, Edit, ArrowLeft, Trash2, Image as ImageIcon, Barcode, Scissors, Settings } from 'lucide-react';
+import { Plus, Package, Edit, ArrowLeft, Trash2, Image as ImageIcon, Barcode, Scissors, Settings, Layers } from 'lucide-react';
 import { useToast } from '../../components/common/Toast';
 
 // Components
@@ -40,6 +40,15 @@ export default function StockPage() {
 
     // ✅ เก็บ barcode ที่สแกนมา เผื่อ prefill/auto-save ตอนเพิ่มสินค้า
     const [pendingBarcode, setPendingBarcode] = useState<string>('');
+
+    // ✅ ฟังก์ชั่นสำหรับรักษา scroll position
+    const fetchProductsKeepScroll = async () => {
+        const scrollY = window.scrollY;
+        await fetchProducts();
+        requestAnimationFrame(() => {
+            window.scrollTo(0, scrollY);
+        });
+    };
 
     const [isProductModalOpen, setIsProductModalOpen] = useState(false);
     const [isStockInModalOpen, setIsStockInModalOpen] = useState(false);
@@ -375,7 +384,7 @@ export default function StockPage() {
 
         toast.success('บันทึกเรียบร้อย!');
         setIsProductModalOpen(false);
-        fetchProducts();
+        fetchProductsKeepScroll();
         focusScan();
     };
 
@@ -414,7 +423,7 @@ export default function StockPage() {
 
         toast.success(`เติมสต็อกเรียบร้อย!`);
         setIsStockInModalOpen(false);
-        fetchProducts();
+        fetchProductsKeepScroll();
         focusScan();
     };
 
@@ -436,7 +445,7 @@ export default function StockPage() {
 
         toast.success('บันทึกบาร์โค้ดเรียบร้อย!');
         setIsBarcodeModalOpen(false);
-        fetchProducts();
+        fetchProductsKeepScroll();
         focusScan();
     };
 
@@ -561,6 +570,9 @@ export default function StockPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-2 w-full lg:w-auto">
+                    <Link href="/settings" className="flex-1 lg:flex-none bg-gray-500 text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-gray-600 shadow-md text-lg">
+                        <Layers size={24} /> หมวดหมู่ย่อย
+                    </Link>
                     <button onClick={() => setIsSplitModalOpen(true)} className="flex-1 lg:flex-none bg-orange-500 text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-orange-600 shadow-md text-lg">
                         <Scissors size={24} /> ตัดแบ่งของขาย
                     </button>
