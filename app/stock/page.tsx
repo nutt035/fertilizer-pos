@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { supabase, CURRENT_BRANCH_ID } from '../../lib/supabase';
-import { Plus, Package, Edit, ArrowLeft, Trash2, Image as ImageIcon, Barcode, Scissors, Settings, Layers } from 'lucide-react';
+import { Plus, Package, Edit, ArrowLeft, Trash2, Image as ImageIcon, Barcode, Scissors, Settings, Layers, ArrowUpDown, DollarSign } from 'lucide-react';
 import { useToast } from '../../components/common/Toast';
 
 // Components
@@ -16,7 +16,8 @@ import {
     RecipeModal,
     StockDashboard,
     BarcodeManager,
-    BulkAddModal
+    BulkAddModal,
+    BulkEditModal
 } from '../../components/stock';
 
 // Types
@@ -66,6 +67,13 @@ export default function StockPage() {
 
     // Bulk Add State
     const [isBulkAddModalOpen, setIsBulkAddModalOpen] = useState(false);
+
+    // Bulk Edit State  
+    const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState(false);
+
+    // Sorting State
+    type SortOption = 'created_desc' | 'updated_desc' | 'name_asc' | 'stock_desc' | 'stock_asc' | 'no_image';
+    const [sortBy, setSortBy] = useState<SortOption>('created_desc');
 
     // Form State
     const [selectedProduct, setSelectedProduct] = useState<StockProduct | null>(null);
@@ -489,6 +497,29 @@ export default function StockPage() {
         filteredProducts = filteredProducts.filter(p => lowStockIds.has(p.id));
     }
 
+    // ✅ Sorting
+    filteredProducts = [...filteredProducts].sort((a, b) => {
+        switch (sortBy) {
+            case 'created_desc':
+                return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+            case 'updated_desc':
+                return new Date((b as any).updated_at || b.created_at || 0).getTime() - new Date((a as any).updated_at || a.created_at || 0).getTime();
+            case 'name_asc':
+                return a.name.localeCompare(b.name, 'th');
+            case 'stock_desc':
+                return b.stock - a.stock;
+            case 'stock_asc':
+                return a.stock - b.stock;
+            case 'no_image':
+                // สินค้าที่ไม่มีรูปขึ้นก่อน
+                const aHasImage = a.image_url ? 1 : 0;
+                const bHasImage = b.image_url ? 1 : 0;
+                return aHasImage - bHasImage;
+            default:
+                return 0;
+        }
+    });
+
     return (
         <div className="min-h-screen bg-gray-100 p-4 lg:p-6 font-sans">
 
@@ -578,13 +609,39 @@ export default function StockPage() {
             })()}
 
             <div className="flex flex-col lg:flex-row justify-between items-center mb-4 gap-3">
-                <div className="flex items-center gap-3 w-full lg:w-auto">
+                <div className="flex items-center gap-3 w-full lg:w-auto flex-wrap">
                     <SearchInput
                         value={searchTerm}
                         onChange={setSearchTerm}
                         placeholder="ค้นหาชื่อ, รหัส, หรือบาร์โค้ด..."
-                        className="flex-1 lg:w-80"
+                        className="flex-1 lg:w-64"
                     />
+
+                    {/* Sort Dropdown */}
+                    <div className="relative">
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value as any)}
+                            className="appearance-none bg-white border-2 border-gray-200 rounded-xl px-4 py-3 pr-10 font-bold text-gray-700 cursor-pointer hover:border-blue-400 focus:border-blue-500 focus:outline-none text-sm lg:text-base"
+                        >
+                            <option value="created_desc">🆕 เพิ่มล่าสุด</option>
+                            <option value="updated_desc">✏️ แก้ไขล่าสุด</option>
+                            <option value="name_asc">🔤 ชื่อ ก-ฮ</option>
+                            <option value="stock_desc">📦 มีมากสุด</option>
+                            <option value="stock_asc">⚠️ ใกล้หมด</option>
+                            <option value="no_image">🖼️ ยังไม่มีรูป</option>
+                        </select>
+                        <ArrowUpDown size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    </div>
+
+                    {/* Bulk Edit Button */}
+                    <button
+                        onClick={() => setIsBulkEditModalOpen(true)}
+                        className="flex items-center gap-2 px-4 py-3 rounded-xl font-bold text-sm lg:text-base transition whitespace-nowrap bg-amber-100 text-amber-700 hover:bg-amber-200 border-2 border-amber-200"
+                    >
+                        <DollarSign size={20} /> แก้ราคาด่วน
+                    </button>
+
                     {lowStockCount > 0 && (
                         <button
                             onClick={() => setShowLowStockOnly(!showLowStockOnly)}
@@ -816,6 +873,19 @@ export default function StockPage() {
                 onClose={() => { setIsBulkAddModalOpen(false); focusScan(); }}
                 categories={categories}
                 units={units}
+                onSaveComplete={fetchProducts}
+            />
+
+            <BulkEditModal
+                isOpen={isBulkEditModalOpen}
+                onClose={() => { setIsBulkEditModalOpen(false); focusScan(); }}
+                products={products.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    cost: p.cost,
+                    price: p.price,
+                    stock: p.stock
+                }))}
                 onSaveComplete={fetchProducts}
             />
         </div>
