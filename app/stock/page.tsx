@@ -30,6 +30,7 @@ export default function StockPage() {
 
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
     const [showLowStockOnly, setShowLowStockOnly] = useState(false);
 
     // ✅ Scan input state
@@ -458,11 +459,13 @@ export default function StockPage() {
     })));
 
 
-    let filteredProducts = products.filter(p =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (p.barcode && p.barcode.includes(searchTerm))
-    );
+    let filteredProducts = products.filter(p => {
+        const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (p.barcode && p.barcode.includes(searchTerm));
+        const matchCategory = selectedCategory === 'ทั้งหมด' || p.category === selectedCategory;
+        return matchSearch && matchCategory;
+    });
 
     if (showLowStockOnly) {
         const lowStockIds = new Set(lowStockProducts.map(p => p.id));
@@ -515,6 +518,22 @@ export default function StockPage() {
                         </div>
                     )}
                 </div>
+            </div>
+
+            {/* Category Filter */}
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
+                {['ทั้งหมด', ...categories.map(c => c.name)].map(cat => (
+                    <button
+                        key={cat}
+                        onClick={() => { setSelectedCategory(cat); focusScan(); }}
+                        className={`px-4 py-2 lg:px-5 lg:py-2.5 rounded-xl text-sm lg:text-base font-bold whitespace-nowrap transition shadow-sm ${selectedCategory === cat
+                            ? 'bg-blue-600 text-white transform scale-105'
+                            : 'bg-white text-gray-500 border hover:bg-gray-50'
+                            }`}
+                    >
+                        {cat}
+                    </button>
+                ))}
             </div>
 
             <div className="flex flex-col lg:flex-row justify-between items-center mb-4 gap-3">
