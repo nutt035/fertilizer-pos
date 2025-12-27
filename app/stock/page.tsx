@@ -15,7 +15,8 @@ import {
     SplitModal,
     RecipeModal,
     StockDashboard,
-    BarcodeManager
+    BarcodeManager,
+    BulkAddModal
 } from '../../components/stock';
 
 // Types
@@ -62,6 +63,9 @@ export default function StockPage() {
     // Barcode Manager States
     const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false);
     const [selectedProductForBarcode, setSelectedProductForBarcode] = useState<StockProduct | null>(null);
+
+    // Bulk Add State
+    const [isBulkAddModalOpen, setIsBulkAddModalOpen] = useState(false);
 
     // Form State
     const [selectedProduct, setSelectedProduct] = useState<StockProduct | null>(null);
@@ -604,6 +608,9 @@ export default function StockPage() {
                     <button onClick={() => setIsRecipeModalOpen(true)} className="flex-1 lg:flex-none bg-purple-500 text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-purple-600 shadow-md text-lg">
                         <Settings size={24} /> ตั้งค่าสูตร
                     </button>
+                    <button onClick={() => setIsBulkAddModalOpen(true)} className="flex-1 lg:flex-none bg-green-600 text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 shadow-md text-lg">
+                        <Layers size={24} /> เพิ่มหลายรายการ
+                    </button>
                     <button onClick={openAddModal} className="flex-1 lg:flex-none bg-blue-600 text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 shadow-md text-lg">
                         <Plus size={24} /> เพิ่มสินค้าใหม่
                     </button>
@@ -802,6 +809,14 @@ export default function StockPage() {
                 productName={selectedProductForBarcode?.name || ''}
                 barcodes={selectedProductForBarcode?.product_barcodes?.map((b: any) => b.barcode) || []}
                 onSave={handleSaveBarcodes}
+            />
+
+            <BulkAddModal
+                isOpen={isBulkAddModalOpen}
+                onClose={() => { setIsBulkAddModalOpen(false); focusScan(); }}
+                categories={categories}
+                units={units}
+                onSaveComplete={fetchProducts}
             />
         </div>
     );

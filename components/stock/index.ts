@@ -4,3 +4,4 @@ export { default as SplitModal } from './SplitModal';
 export { default as RecipeModal } from './RecipeModal';
 export { default as StockDashboard } from './StockDashboard';
 export { default as BarcodeManager } from './BarcodeManager';
+export { default as BulkAddModal } from './BulkAddModal';

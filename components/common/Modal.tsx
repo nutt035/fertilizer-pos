@@ -9,7 +9,7 @@ interface ModalProps {
     title: string;
     titleIcon?: React.ReactNode;
     headerColor?: string;
-    size?: 'sm' | 'md' | 'lg' | 'xl';
+    size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
     children: React.ReactNode;
     footer?: React.ReactNode;
 }
@@ -18,7 +18,8 @@ const sizeClasses = {
     sm: 'max-w-sm',
     md: 'max-w-md',
     lg: 'max-w-lg',
-    xl: 'max-w-2xl'
+    xl: 'max-w-2xl',
+    full: 'max-w-6xl'
 };
 
 export default function Modal({
