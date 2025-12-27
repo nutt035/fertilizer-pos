@@ -7,6 +7,7 @@ const supabase = createClient(
 );
 
 const LINE_API_BASE = 'https://api.line.me/v2/bot';
+const MAX_MESSAGE_LENGTH = 4500; // LINE limit is 5000, leave buffer
 
 async function sendLineGroupMessage(message: string): Promise<boolean> {
     const channelToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
@@ -18,19 +19,51 @@ async function sendLineGroupMessage(message: string): Promise<boolean> {
     }
 
     try {
-        const response = await fetch(`${LINE_API_BASE}/message/push`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${channelToken}`
-            },
-            body: JSON.stringify({
-                to: groupId,
-                messages: [{ type: 'text', text: message }]
-            })
-        });
+        // แบ่งข้อความถ้ายาวเกิน
+        const messages: string[] = [];
+        if (message.length <= MAX_MESSAGE_LENGTH) {
+            messages.push(message);
+        } else {
+            // แบ่งตาม newline
+            const lines = message.split('\n');
+            let current = '';
+            for (const line of lines) {
+                if ((current + '\n' + line).length > MAX_MESSAGE_LENGTH) {
+                    if (current) messages.push(current.trim());
+                    current = line;
+                } else {
+                    current = current ? current + '\n' + line : line;
+                }
+            }
+            if (current) messages.push(current.trim());
+        }
 
-        return response.ok;
+        // ส่งทีละข้อความ
+        for (const msg of messages) {
+            const response = await fetch(`${LINE_API_BASE}/message/push`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${channelToken}`
+                },
+                body: JSON.stringify({
+                    to: groupId,
+                    messages: [{ type: 'text', text: msg }]
+                })
+            });
+
+            if (!response.ok) {
+                console.error('LINE send failed:', await response.text());
+                return false;
+            }
+
+            // รอ 100ms ระหว่างข้อความ (ป้องกัน rate limit)
+            if (messages.length > 1) {
+                await new Promise(r => setTimeout(r, 100));
+            }
+        }
+
+        return true;
     } catch (error) {
         console.error('Failed to send LINE message:', error);
         return false;
@@ -88,7 +121,7 @@ async function getLowStockAlert(): Promise<string | null> {
 
     if (lowStock.length === 0) return null;
 
-    const list = lowStock.slice(0, 5).map((p: any) =>
+    const list = lowStock.slice(0, 999).map((p: any) =>
         `• ${p.name}: เหลือ ${p.inventory?.[0]?.quantity || 0}`
     ).join('\n');
 
@@ -110,7 +143,7 @@ async function getExpiryAlert(): Promise<string | null> {
 
     if (error || !products || products.length === 0) return null;
 
-    const list = products.slice(0, 10).map((p: any) =>
+    const list = products.slice(0, 999).map((p: any) =>
         `• ${p.name} (หมด ${new Date(p.expiry_date).toLocaleDateString('th-TH')})`
     ).join('\n');
 

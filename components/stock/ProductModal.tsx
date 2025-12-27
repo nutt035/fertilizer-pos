@@ -28,6 +28,7 @@ interface ProductFormData {
     subcategory_id: string;
     unit_id: string;
     image_url?: string;
+    expiry_date?: string; // วันหมดอายุ
 }
 
 interface ProductModalProps {
@@ -65,7 +66,8 @@ export default function ProductModal({
         category_id: '',
         subcategory_id: '',
         unit_id: '',
-        image_url: ''
+        image_url: '',
+        expiry_date: ''
     });
 
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -94,7 +96,8 @@ export default function ProductModal({
                 category_id: product.category_id || '',
                 subcategory_id: product.subcategory_id || '',
                 unit_id: product.unit_id || '',
-                image_url: product.image_url || ''
+                image_url: product.image_url || '',
+                expiry_date: product.expiry_date || ''
             });
             setPreviewUrl(product.image_url || null);
         } else {
@@ -111,7 +114,8 @@ export default function ProductModal({
                 category_id: categories[0]?.id || '',
                 subcategory_id: '',
                 unit_id: units[0]?.id || '',
-                image_url: ''
+                image_url: '',
+                expiry_date: ''
             });
             setPreviewUrl(null);
         }
@@ -316,7 +320,7 @@ export default function ProductModal({
                     </div>
 
                     {/* Price & Cost */}
-                    <div className="grid grid-cols-3 gap-4 border-t pt-4">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 border-t pt-4">
                         <div>
                             <label className="block text-gray-700 mb-1">ราคาทุน</label>
                             <input
@@ -342,6 +346,15 @@ export default function ProductModal({
                                 value={formValue.stock}
                                 onChange={(e) => setFormValue({ ...formValue, stock: Number(e.target.value) })}
                                 className="w-full border p-3 rounded text-lg bg-blue-50 font-bold"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-gray-700 mb-1 font-bold text-orange-600">📅 วันหมดอายุ</label>
+                            <input
+                                type="date"
+                                value={formValue.expiry_date || ''}
+                                onChange={(e) => setFormValue({ ...formValue, expiry_date: e.target.value })}
+                                className="w-full border p-3 rounded text-lg bg-orange-50"
                             />
                         </div>
                     </div>

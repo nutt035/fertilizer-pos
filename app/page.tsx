@@ -17,7 +17,8 @@ import {
   CartItemRow,
   ReceiptPrint,
   ReceiptData,
-  DiscountModal
+  DiscountModal,
+  SplitSellModal
 } from '../components/pos';
 
 interface HeldBill {
@@ -72,6 +73,9 @@ export default function POSPage() {
   const [billDiscountType, setBillDiscountType] = useState<'percent' | 'fixed' | null>(null);
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
   const [discountTargetItem, setDiscountTargetItem] = useState<CartItem | null>(null);
+
+  // --- State: Split Sell Modal ---
+  const [isSplitSellModalOpen, setIsSplitSellModalOpen] = useState(false);
 
   // คำนวณยอดรวม (with discounts)
   const calculateItemTotal = (item: CartItem) => {
@@ -594,13 +598,13 @@ export default function POSPage() {
             <span className="text-gray-800 text-lg lg:text-xl font-bold">ยอดสุทธิ</span>
             <span className="text-3xl lg:text-5xl font-bold text-blue-700">฿{totalAmount.toLocaleString()}</span>
           </div>
-          <div className="grid grid-cols-4 gap-2 lg:gap-3 mb-2 lg:mb-3">
+          <div className="grid grid-cols-5 gap-2 lg:gap-3 mb-2 lg:mb-3">
             <button
               onClick={holdBill}
               disabled={cart.length === 0}
               className="flex items-center justify-center gap-1 lg:gap-2 bg-yellow-100 text-yellow-800 py-2 lg:py-3 rounded-xl text-base lg:text-lg font-bold hover:bg-yellow-200 transition border border-yellow-200 disabled:opacity-50"
             >
-              <PauseCircle size={18} /> <span className="hidden sm:inline">พักบิล</span>
+              <PauseCircle size={18} /> <span className="hidden sm:inline">พัก</span>
             </button>
 
             <button
@@ -622,6 +626,13 @@ export default function POSPage() {
               className="flex items-center justify-center gap-1 lg:gap-2 bg-pink-100 text-pink-800 py-2 lg:py-3 rounded-xl text-base lg:text-lg font-bold hover:bg-pink-200 transition border border-pink-200 disabled:opacity-50"
             >
               ส่วนลด
+            </button>
+
+            <button
+              onClick={() => setIsSplitSellModalOpen(true)}
+              className="flex items-center justify-center gap-1 lg:gap-2 bg-orange-100 text-orange-800 py-2 lg:py-3 rounded-xl text-base lg:text-lg font-bold hover:bg-orange-200 transition border border-orange-200"
+            >
+              🍚 <span className="hidden sm:inline">แบ่ง</span>
             </button>
 
             <button
@@ -759,6 +770,25 @@ export default function POSPage() {
         currentDiscount={billDiscount}
         currentDiscountType={billDiscountType}
         onApply={handleApplyBillDiscount}
+      />
+
+      <SplitSellModal
+        isOpen={isSplitSellModalOpen}
+        onClose={() => { setIsSplitSellModalOpen(false); focusScan(); }}
+        products={products}
+        onAddToCart={(product, quantity, customPrice, note) => {
+          const fullProduct = products.find(p => p.id === product.id);
+          if (fullProduct) {
+            setCart(prev => [...prev, {
+              ...fullProduct,
+              quantity,
+              price: customPrice,
+              note
+            }]);
+          }
+          setIsSplitSellModalOpen(false);
+          focusScan();
+        }}
       />
 
     </div>

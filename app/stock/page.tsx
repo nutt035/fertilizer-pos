@@ -72,7 +72,7 @@ export default function StockPage() {
     const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState(false);
 
     // Sorting State
-    type SortOption = 'created_desc' | 'updated_desc' | 'name_asc' | 'stock_desc' | 'stock_asc' | 'no_image';
+    type SortOption = 'created_desc' | 'updated_desc' | 'name_asc' | 'stock_desc' | 'stock_asc' | 'no_image' | 'expiry_soon';
     const [sortBy, setSortBy] = useState<SortOption>('created_desc');
 
     // Form State
@@ -332,7 +332,8 @@ export default function StockPage() {
             category_id: formData.category_id,
             subcategory_id: formData.subcategory_id || null,
             unit_id: formData.unit_id,
-            image_url: finalImageUrl
+            image_url: finalImageUrl,
+            expiry_date: formData.expiry_date || null
         };
 
         let productId = selectedProduct?.id;
@@ -516,6 +517,11 @@ export default function StockPage() {
                 const aHasImage = a.image_url ? 1 : 0;
                 const bHasImage = b.image_url ? 1 : 0;
                 return aHasImage - bHasImage;
+            case 'expiry_soon':
+                // สินค้าใกล้หมดอายุขึ้นก่อน (ไม่มีวันหมดอายุอยู่ท้าย)
+                const aExpiry = (a as any).expiry_date ? new Date((a as any).expiry_date).getTime() : Infinity;
+                const bExpiry = (b as any).expiry_date ? new Date((b as any).expiry_date).getTime() : Infinity;
+                return aExpiry - bExpiry;
             default:
                 return 0;
         }
@@ -534,6 +540,15 @@ export default function StockPage() {
                     <h1 className="text-xl lg:text-3xl font-black text-gray-800 flex items-center gap-2">
                         <Package size={24} className="lg:w-9 lg:h-9 text-blue-600" /> จัดการสต็อก (HQ)
                     </h1>
+                    {/* Quick Access Buttons */}
+                    <div className="flex gap-2 ml-4">
+                        <a href="/stock-card" className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm font-bold hover:bg-blue-200 transition">
+                            📊 สต็อกการ์ด
+                        </a>
+                        <a href="/categories" className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm font-bold hover:bg-purple-200 transition">
+                            📁 จัดหมวดหมู่
+                        </a>
+                    </div>
                 </div>
                 {loading && <div className="text-blue-600 font-bold animate-pulse text-sm">กำลังโหลด...</div>}
             </div>
@@ -631,6 +646,7 @@ export default function StockPage() {
                             <option value="stock_desc">📦 มีมากสุด</option>
                             <option value="stock_asc">⚠️ ใกล้หมด</option>
                             <option value="no_image">🖼️ ยังไม่มีรูป</option>
+                            <option value="expiry_soon">📅 ใกล้หมดอายุ</option>
                         </select>
                         <ArrowUpDown size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>

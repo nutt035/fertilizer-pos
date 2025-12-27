@@ -1,6 +1,8 @@
 'use client';
 
 import { ToastProvider } from '@/components/common';
+import { AuthProvider } from '@/contexts/AuthContext';
+import AuthGuard from '@/components/AuthGuard';
 
 export default function ClientProviders({
     children
@@ -8,8 +10,12 @@ export default function ClientProviders({
     children: React.ReactNode
 }) {
     return (
-        <ToastProvider>
-            {children}
-        </ToastProvider>
+        <AuthProvider>
+            <ToastProvider>
+                <AuthGuard>
+                    {children}
+                </AuthGuard>
+            </ToastProvider>
+        </AuthProvider>
     );
 }

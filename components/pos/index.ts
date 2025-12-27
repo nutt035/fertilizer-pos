@@ -5,4 +5,5 @@ export { default as ProductCard } from './ProductCard';
 export { default as CartItemRow } from './CartItemRow';
 export { default as ReceiptPrint } from './ReceiptPrint';
 export { default as DiscountModal } from './DiscountModal';
+export { default as SplitSellModal } from './SplitSellModal';
 export type { ReceiptData, ReceiptItem } from './ReceiptPrint';
