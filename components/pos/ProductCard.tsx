@@ -15,13 +15,13 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
     return (
         <div
             onClick={() => onClick(product)}
-            className={`bg-white rounded-xl lg:rounded-2xl shadow-md border-2 transition cursor-pointer active:scale-95 flex flex-col overflow-hidden h-56 lg:h-72 group ${isOutOfStock
+            className={`bg-white rounded-xl lg:rounded-2xl shadow-md border-2 transition cursor-pointer active:scale-95 flex flex-col overflow-hidden h-64 lg:h-80 group ${isOutOfStock
                 ? 'border-red-300 opacity-80'
                 : 'border-transparent hover:border-blue-500 hover:shadow-xl'
                 }`}
         >
             {/* Image */}
-            <div className="h-24 lg:h-32 w-full bg-white flex items-center justify-center relative overflow-hidden p-2">
+            <div className="h-36 lg:h-44 w-full bg-gray-50 flex items-center justify-center relative overflow-hidden p-3">
                 {product.image_url ? (
                     <img
                         src={product.image_url}
@@ -30,7 +30,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                     />
                 ) : (
                     <div className="text-gray-300">
-                        <ShoppingCart size={32} />
+                        <ShoppingCart size={48} />
                     </div>
                 )}
                 <div className="absolute top-1 right-1 lg:top-2 lg:right-2 bg-gray-100 text-gray-600 px-2 py-0.5 lg:py-1 text-[10px] lg:text-xs rounded-md">
@@ -51,6 +51,11 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                     <div className="text-gray-700 text-sm lg:text-lg leading-tight line-clamp-2 font-medium">
                         {product.name}
                     </div>
+                    {product.description && (
+                        <div className="text-gray-400 text-[10px] lg:text-xs leading-tight mt-0.5 line-clamp-1">
+                            {product.description}
+                        </div>
+                    )}
                 </div>
                 <div className="flex justify-between items-end mt-1 lg:mt-2">
                     <div className="text-red-500 font-bold text-lg lg:text-2xl">

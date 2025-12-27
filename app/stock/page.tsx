@@ -24,6 +24,7 @@ import { StockProduct, SplitRecipe, MasterData } from '../../types';
 export default function StockPage() {
     const [products, setProducts] = useState<StockProduct[]>([]);
     const [categories, setCategories] = useState<MasterData[]>([]);
+    const [subcategories, setSubcategories] = useState<{ id: string; name: string; category_id: string }[]>([]);
     const [units, setUnits] = useState<MasterData[]>([]);
     const toast = useToast();
 
@@ -101,8 +102,10 @@ export default function StockPage() {
 
     const fetchMasterData = async () => {
         const { data: cats } = await supabase.from('master_categories').select('*').order('name');
+        const { data: subs } = await supabase.from('master_subcategories').select('*').order('name');
         const { data: uns } = await supabase.from('master_units').select('*').order('name');
         setCategories(cats || []);
+        setSubcategories(subs || []);
         setUnits(uns || []);
     };
 
@@ -301,6 +304,7 @@ export default function StockPage() {
             price: Number(formData.price),
             cost: Number(formData.cost),
             category_id: formData.category_id,
+            subcategory_id: formData.subcategory_id || null,
             unit_id: formData.unit_id,
             image_url: finalImageUrl
         };
@@ -702,6 +706,7 @@ export default function StockPage() {
                 onClose={() => { setIsProductModalOpen(false); setPendingBarcode(''); focusScan(); }}
                 product={selectedProduct}
                 categories={categories}
+                subcategories={subcategories}
                 units={units}
                 onSave={(formData: any, file: File | null) => {
                     // ✅ ยัด barcode เข้าไปให้อัตโนมัติ (แม้ modal จะไม่มีช่อง barcode)

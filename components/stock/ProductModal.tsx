@@ -11,6 +11,10 @@ interface MasterData {
     name: string;
 }
 
+interface SubCategory extends MasterData {
+    category_id: string;
+}
+
 interface ProductFormData {
     sku: string;
     name: string;
@@ -20,6 +24,7 @@ interface ProductFormData {
     stock: number;
     barcode: string;
     category_id: string;
+    subcategory_id: string;
     unit_id: string;
     image_url?: string;
 }
@@ -29,6 +34,7 @@ interface ProductModalProps {
     onClose: () => void;
     product: any | null;
     categories: MasterData[];
+    subcategories: SubCategory[];
     units: MasterData[];
     onSave: (formData: ProductFormData, file: File | null) => Promise<void>;
 
@@ -41,6 +47,7 @@ export default function ProductModal({
     onClose,
     product,
     categories,
+    subcategories,
     units,
     onSave,
     defaultBarcode
@@ -54,6 +61,7 @@ export default function ProductModal({
         stock: 0,
         barcode: '',
         category_id: '',
+        subcategory_id: '',
         unit_id: '',
         image_url: ''
     });
@@ -81,6 +89,7 @@ export default function ProductModal({
                 stock: product.stock || 0,
                 barcode: product.barcode || '',
                 category_id: product.category_id || '',
+                subcategory_id: product.subcategory_id || '',
                 unit_id: product.unit_id || '',
                 image_url: product.image_url || ''
             });
@@ -96,6 +105,7 @@ export default function ProductModal({
                 stock: 0,
                 barcode: (defaultBarcode || '').toString(),
                 category_id: categories[0]?.id || '',
+                subcategory_id: '',
                 unit_id: units[0]?.id || '',
                 image_url: ''
             });
@@ -246,17 +256,33 @@ export default function ProductModal({
                     </div>
 
                     {/* Dropdowns */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                         <div>
                             <label className="block text-gray-700 mb-1">หมวดหมู่ *</label>
                             <select
                                 value={formValue.category_id}
-                                onChange={(e) => setFormValue({ ...formValue, category_id: e.target.value })}
+                                onChange={(e) => setFormValue({ ...formValue, category_id: e.target.value, subcategory_id: '' })}
                                 className="w-full border p-3 rounded text-lg bg-white"
                             >
                                 {categories.map((c) => (
                                     <option key={c.id} value={c.id}>{c.name}</option>
                                 ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-gray-700 mb-1">หมวดหมู่ย่อย</label>
+                            <select
+                                value={formValue.subcategory_id}
+                                onChange={(e) => setFormValue({ ...formValue, subcategory_id: e.target.value })}
+                                className="w-full border p-3 rounded text-lg bg-white"
+                                disabled={!formValue.category_id}
+                            >
+                                <option value="">-- ไม่ระบุ --</option>
+                                {subcategories
+                                    .filter(sc => sc.category_id === formValue.category_id)
+                                    .map((sc) => (
+                                        <option key={sc.id} value={sc.id}>{sc.name}</option>
+                                    ))}
                             </select>
                         </div>
                         <div>
