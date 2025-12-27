@@ -18,6 +18,7 @@ interface SubCategory extends MasterData {
 interface ProductFormData {
     sku: string;
     name: string;
+    size: string;  // ขนาดสินค้า
     description: string;
     price: number;
     cost: number;
@@ -55,6 +56,7 @@ export default function ProductModal({
     const [formValue, setFormValue] = useState<ProductFormData>({
         sku: '',
         name: '',
+        size: '',
         description: '',
         price: 0,
         cost: 0,
@@ -83,6 +85,7 @@ export default function ProductModal({
             setFormValue({
                 sku: product.sku || '',
                 name: product.name || '',
+                size: product.size || '',
                 description: product.description || '',
                 price: product.price || 0,
                 cost: product.cost || 0,
@@ -99,6 +102,7 @@ export default function ProductModal({
             setFormValue({
                 sku: '',
                 name: '',
+                size: '',
                 description: '',
                 price: 0,
                 cost: 0,
@@ -232,16 +236,28 @@ export default function ProductModal({
                         </div>
                     </div>
 
-                    {/* Name & Formula */}
-                    <div>
-                        <label className="block text-gray-700 mb-1">ชื่อสินค้า *</label>
-                        <input
-                            type="text"
-                            value={formValue.name}
-                            onChange={(e) => setFormValue({ ...formValue, name: e.target.value })}
-                            className="w-full border p-3 rounded text-lg"
-                            placeholder="เช่น ปุ๋ยตรากระต่าย"
-                        />
+                    {/* Name & Size */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-gray-700 mb-1">ชื่อสินค้า *</label>
+                            <input
+                                type="text"
+                                value={formValue.name}
+                                onChange={(e) => setFormValue({ ...formValue, name: e.target.value })}
+                                className="w-full border p-3 rounded text-lg"
+                                placeholder="เช่น ปุ๋ยยูเรีย"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-gray-700 mb-1 font-bold text-purple-600">📦 ขนาด</label>
+                            <input
+                                type="text"
+                                value={formValue.size}
+                                onChange={(e) => setFormValue({ ...formValue, size: e.target.value })}
+                                className="w-full border-2 border-purple-200 p-3 rounded text-lg bg-purple-50"
+                                placeholder="เช่น 50 กก., 1 ลิตร"
+                            />
+                        </div>
                     </div>
 
                     <div>

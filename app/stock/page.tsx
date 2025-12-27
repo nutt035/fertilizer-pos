@@ -325,6 +325,7 @@ export default function StockPage() {
         const productPayload = {
             sku: formData.sku || null,
             name: formData.name,
+            size: formData.size || null,
             description: formData.description,
             price: Number(formData.price),
             cost: Number(formData.cost),
@@ -699,7 +700,12 @@ export default function StockPage() {
                                         {product.sku}
                                     </span>
                                 )}
-                                <div className="font-bold text-gray-800 text-base truncate">{product.name}</div>
+                                <div className="font-bold text-gray-800 text-base truncate">
+                                    {product.name}
+                                    {(product as any).size && (
+                                        <span className="ml-2 text-purple-600 font-normal">({(product as any).size})</span>
+                                    )}
+                                </div>
                                 <div className="text-sm text-gray-400">{product.category}</div>
                             </div>
                             {/* สต็อก */}
@@ -773,7 +779,12 @@ export default function StockPage() {
                                                     {product.sku}
                                                 </span>
                                             )}
-                                            <div className="font-bold text-gray-800 text-xl">{product.name}</div>
+                                            <div className="font-bold text-gray-800 text-xl">
+                                                {product.name}
+                                                {(product as any).size && (
+                                                    <span className="ml-2 text-purple-600 text-base font-normal">({(product as any).size})</span>
+                                                )}
+                                            </div>
                                             <div className="text-gray-500 text-sm">{product.description || '-'}</div>
                                             {product.barcode && (
                                                 <div className="text-xs text-gray-400 flex items-center gap-1">

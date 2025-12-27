@@ -4,6 +4,7 @@ export interface Product {
   id: string;
   name: string;
   sku?: string;
+  size?: string;  // ขนาดสินค้า เช่น "50 กก.", "1 ลิตร"
   description?: string;
   image_url: string | null;
   cost: number;
