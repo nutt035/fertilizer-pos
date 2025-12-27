@@ -4,6 +4,7 @@ import React from 'react';
 
 interface ReceiptItem {
     name: string;
+    description?: string;  // รายละเอียดสินค้า (optional)
     quantity: number;
     price: number;
     unit?: string;
@@ -114,6 +115,11 @@ export default function ReceiptPrint({ data, isPreview = false }: ReceiptPrintPr
                         {/* ชื่อสินค้า */}
                         <div style={{ fontSize: '24px' }}>
                             {item.name}
+                            {item.description && (
+                                <div style={{ fontSize: '24px' }}>
+                                    {item.description}
+                                </div>
+                            )}
                         </div>
                         {/* จำนวน x ราคา = รวม */}
                         <div className="receipt-row" style={{ fontSize: '24px', paddingLeft: '2mm' }}>
