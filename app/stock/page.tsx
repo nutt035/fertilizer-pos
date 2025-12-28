@@ -40,7 +40,7 @@ export default function StockPage() {
     // ✅ Scan input state
     const [scanTerm, setScanTerm] = useState('');
     const scanRef = useRef<HTMLInputElement>(null);
-    const focusScan = () => setTimeout(() => scanRef.current?.focus(), 0);
+    const focusScan = () => setTimeout(() => scanRef.current?.focus({ preventScroll: true }), 0);
 
     // ✅ เก็บ barcode ที่สแกนมา เผื่อ prefill/auto-save ตอนเพิ่มสินค้า
     const [pendingBarcode, setPendingBarcode] = useState<string>('');
@@ -239,7 +239,7 @@ export default function StockPage() {
         master_subcategories (id, name),
         master_units (name),
         inventory (quantity),
-        product_barcodes (barcode)
+        product_barcodes (barcode, is_custom)
       `)
             .eq('is_active', true)
             .eq('inventory.branch_id', CURRENT_BRANCH_ID)
@@ -248,15 +248,21 @@ export default function StockPage() {
         if (error) {
             console.error('Error fetching products:', error);
         } else {
-            const formatted = data?.map((p: any) => ({
-                ...p,
-                stock: p.inventory?.[0]?.quantity || 0,
-                category: p.master_categories?.name || '-',
-                subcategory: p.master_subcategories?.name || '',
-                unit: p.master_units?.name || '-',
-                barcode: p.product_barcodes?.[0]?.barcode || '',
-                product_barcodes: p.product_barcodes
-            })) || [];
+            const formatted = data?.map((p: any) => {
+                // เอาเฉพาะบาร์โค้ดที่สร้างเอง (is_custom = true หรือ null)
+                const customBarcodes = (p.product_barcodes || []).filter((b: any) =>
+                    b.is_custom === true || b.is_custom === null
+                );
+                return {
+                    ...p,
+                    stock: p.inventory?.[0]?.quantity || 0,
+                    category: p.master_categories?.name || '-',
+                    subcategory: p.master_subcategories?.name || '',
+                    unit: p.master_units?.name || '-',
+                    barcode: customBarcodes[0]?.barcode || '',
+                    product_barcodes: p.product_barcodes
+                };
+            }) || [];
             setProducts(formatted);
         }
         setLoading(false);
@@ -476,10 +482,21 @@ export default function StockPage() {
     const handleSaveBarcodes = async (barcodes: string[]) => {
         if (!selectedProductForBarcode) return;
 
-        await supabase.from('product_barcodes').delete().eq('product_id', selectedProductForBarcode.id);
+        // ลบบาร์โค้ดทั้งหมดที่ is_custom = true หรือ null (บาร์โค้ดเก่าที่สร้างก่อนเพิ่ม column)
+        // แต่ไม่ลบพวก is_custom = false (บาร์โค้ดที่สแกนมาจากสินค้า)
+        await supabase.from('product_barcodes')
+            .delete()
+            .eq('product_id', selectedProductForBarcode.id)
+            .or('is_custom.eq.true,is_custom.is.null');
+
         if (barcodes.length > 0) {
+            // บาร์โค้ดที่สร้างผ่าน BarcodeManager ให้ is_custom = true
             await supabase.from('product_barcodes').insert(
-                barcodes.map(barcode => ({ product_id: selectedProductForBarcode.id, barcode }))
+                barcodes.map(barcode => ({
+                    product_id: selectedProductForBarcode.id,
+                    barcode,
+                    is_custom: true
+                }))
             );
         }
 
@@ -656,13 +673,14 @@ export default function StockPage() {
                 );
             })()}
 
-            <div className="flex flex-col lg:flex-row justify-between items-center mb-4 gap-3">
-                <div className="flex items-center gap-3 w-full lg:w-auto flex-wrap">
+            <div className="flex flex-col gap-4 mb-4">
+                {/* แถวบน: ค้นหา + เรียงลำดับ + กรอง */}
+                <div className="flex flex-wrap items-center gap-3">
                     <SearchInput
                         value={searchTerm}
                         onChange={setSearchTerm}
                         placeholder="ค้นหาชื่อ, รหัส, หรือบาร์โค้ด..."
-                        className="flex-1 lg:w-64"
+                        className="flex-1 min-w-[200px] lg:w-72"
                     />
 
                     {/* Sort Dropdown */}
@@ -670,7 +688,7 @@ export default function StockPage() {
                         <select
                             value={sortBy}
                             onChange={(e) => setSortBy(e.target.value as any)}
-                            className="appearance-none bg-white border-2 border-gray-200 rounded-xl px-4 py-3 pr-10 font-bold text-gray-700 cursor-pointer hover:border-blue-400 focus:border-blue-500 focus:outline-none text-sm lg:text-base"
+                            className="appearance-none bg-white border-2 border-gray-200 rounded-xl px-4 py-3 pr-10 font-bold text-gray-700 cursor-pointer hover:border-blue-400 focus:border-blue-500 focus:outline-none text-sm"
                         >
                             <option value="created_desc">🆕 เพิ่มล่าสุด</option>
                             <option value="updated_desc">✏️ แก้ไขล่าสุด</option>
@@ -683,24 +701,20 @@ export default function StockPage() {
                         <ArrowUpDown size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
 
-                    {/* Bulk Edit Button */}
-                    <button
-                        onClick={() => setIsBulkEditModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-3 rounded-xl font-bold text-sm lg:text-base transition whitespace-nowrap bg-amber-100 text-amber-700 hover:bg-amber-200 border-2 border-amber-200"
-                    >
-                        <DollarSign size={20} /> แก้ราคาด่วน
-                    </button>
+                    {/* Separator */}
+                    <div className="hidden lg:block h-8 w-px bg-gray-300" />
 
+                    {/* Filter Buttons */}
                     {lowStockCount > 0 && (
                         <button
                             onClick={() => { setShowLowStockOnly(!showLowStockOnly); setShowNoBarcodeOnly(false); }}
-                            className={`flex items-center gap-2 px-4 py-3 rounded-xl font-bold text-sm transition whitespace-nowrap ${showLowStockOnly
-                                ? 'bg-red-500 text-white'
-                                : 'bg-red-100 text-red-700 hover:bg-red-200'
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-sm transition whitespace-nowrap ${showLowStockOnly
+                                ? 'bg-red-500 text-white shadow-md'
+                                : 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
                                 }`}
                         >
-                            <span>⚠️ ใกล้หมด</span>
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${showLowStockOnly ? 'bg-white text-red-500' : 'bg-red-500 text-white'}`}>
+                            ⚠️ ใกล้หมด
+                            <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${showLowStockOnly ? 'bg-white text-red-500' : 'bg-red-500 text-white'}`}>
                                 {lowStockCount}
                             </span>
                         </button>
@@ -709,40 +723,67 @@ export default function StockPage() {
                     {noBarcodeCount > 0 && (
                         <button
                             onClick={() => { setShowNoBarcodeOnly(!showNoBarcodeOnly); setShowLowStockOnly(false); }}
-                            className={`flex items-center gap-2 px-4 py-3 rounded-xl font-bold text-sm transition whitespace-nowrap ${showNoBarcodeOnly
-                                ? 'bg-indigo-500 text-white'
-                                : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-sm transition whitespace-nowrap ${showNoBarcodeOnly
+                                ? 'bg-indigo-500 text-white shadow-md'
+                                : 'bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100'
                                 }`}
                         >
-                            <span>🏷️ ไม่มีบาร์โค้ด</span>
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${showNoBarcodeOnly ? 'bg-white text-indigo-500' : 'bg-indigo-500 text-white'}`}>
+                            🏷️ ไม่มีบาร์โค้ด
+                            <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${showNoBarcodeOnly ? 'bg-white text-indigo-500' : 'bg-indigo-500 text-white'}`}>
                                 {noBarcodeCount}
                             </span>
                         </button>
                     )}
-
-                    {/* ปุ่มปริ้นบาร์โค้ด */}
-                    <button
-                        onClick={() => setIsBarcodePrintModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-3 rounded-xl font-bold text-sm transition whitespace-nowrap bg-gray-100 text-gray-700 hover:bg-gray-200 border-2 border-gray-200"
-                    >
-                        <Printer size={20} /> ปริ้นบาร์โค้ด
-                    </button>
                 </div>
 
-                <div className="flex flex-wrap gap-2 w-full lg:w-auto">
-                    <button onClick={() => setIsSplitModalOpen(true)} className="flex-1 lg:flex-none bg-orange-500 text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-orange-600 shadow-md text-lg">
-                        <Scissors size={24} /> ตัดแบ่งของขาย
-                    </button>
-                    <button onClick={() => setIsRecipeModalOpen(true)} className="flex-1 lg:flex-none bg-purple-500 text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-purple-600 shadow-md text-lg">
-                        <Settings size={24} /> ตั้งค่าสูตร
-                    </button>
-                    <button onClick={() => setIsBulkAddModalOpen(true)} className="flex-1 lg:flex-none bg-green-600 text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 shadow-md text-lg">
-                        <Layers size={24} /> เพิ่มหลายรายการ
-                    </button>
-                    <button onClick={openAddModal} className="flex-1 lg:flex-none bg-blue-600 text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 shadow-md text-lg">
-                        <Plus size={24} /> เพิ่มสินค้าใหม่
-                    </button>
+                {/* แถวล่าง: ปุ่มจัดการ */}
+                <div className="flex flex-wrap items-center gap-2">
+                    {/* กลุ่มซ้าย: เครื่องมือ */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            onClick={() => setIsBulkEditModalOpen(true)}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-sm transition bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100"
+                        >
+                            <DollarSign size={18} /> แก้ราคาด่วน
+                        </button>
+                        <button
+                            onClick={() => setIsBarcodePrintModalOpen(true)}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-sm transition bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100"
+                        >
+                            <Printer size={18} /> ปริ้นบาร์โค้ด
+                        </button>
+                        <button
+                            onClick={() => setIsSplitModalOpen(true)}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-sm transition bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100"
+                        >
+                            <Scissors size={18} /> ตัดแบ่ง
+                        </button>
+                        <button
+                            onClick={() => setIsRecipeModalOpen(true)}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-sm transition bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100"
+                        >
+                            <Settings size={18} /> ตั้งค่าสูตร
+                        </button>
+                    </div>
+
+                    {/* Spacer */}
+                    <div className="flex-1" />
+
+                    {/* กลุ่มขวา: เพิ่มสินค้า */}
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setIsBulkAddModalOpen(true)}
+                            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-sm transition bg-green-600 text-white hover:bg-green-700 shadow-md"
+                        >
+                            <Layers size={18} /> เพิ่มหลายรายการ
+                        </button>
+                        <button
+                            onClick={openAddModal}
+                            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-sm transition bg-blue-600 text-white hover:bg-blue-700 shadow-md"
+                        >
+                            <Plus size={18} /> เพิ่มสินค้าใหม่
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -952,7 +993,9 @@ export default function StockPage() {
                 onClose={() => { setIsBarcodeModalOpen(false); focusScan(); }}
                 productId={selectedProductForBarcode?.id || ''}
                 productName={selectedProductForBarcode?.name || ''}
-                barcodes={selectedProductForBarcode?.product_barcodes?.map((b: any) => b.barcode) || []}
+                barcodes={(selectedProductForBarcode?.product_barcodes || [])
+                    .filter((b: any) => b.is_custom === true || b.is_custom === null)
+                    .map((b: any) => b.barcode)}
                 onSave={handleSaveBarcodes}
             />
 
@@ -974,13 +1017,18 @@ export default function StockPage() {
             <BarcodePrintModal
                 isOpen={isBarcodePrintModalOpen}
                 onClose={() => { setIsBarcodePrintModalOpen(false); focusScan(); }}
-                products={products.map(p => ({
-                    id: p.id,
-                    name: p.name,
-                    size: (p as any).size,
-                    price: p.price,
-                    barcode: p.barcode || ''
-                }))}
+                products={products.flatMap(p => {
+                    // เอาเฉพาะ barcodes ที่สร้างเอง (is_custom = true)
+                    const customBarcodes = (p.product_barcodes || []).filter((b: any) => b.is_custom === true);
+                    return customBarcodes.map((b: any) => ({
+                        id: `${p.id}-${b.barcode}`,
+                        productId: p.id,
+                        name: p.name,
+                        size: (p as any).size,
+                        price: p.price,
+                        barcode: b.barcode
+                    }));
+                })}
             />
         </div>
     );
