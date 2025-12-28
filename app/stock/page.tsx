@@ -530,9 +530,13 @@ export default function StockPage() {
 
 
     let filteredProducts = products.filter(p => {
+        // ค้นหาบาร์โค้ดจาก product_barcodes ทั้งหมด (รวมทั้งที่สแกนมาและที่สร้างเอง)
+        const allBarcodes = (p.product_barcodes || []).map((b: any) => b.barcode);
+        const matchBarcode = allBarcodes.some((b: string) => b && b.includes(searchTerm));
+
         const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (p.sku && p.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (p.barcode && p.barcode.includes(searchTerm));
+            matchBarcode;
         const matchCategory = selectedCategory === 'ทั้งหมด' || p.category === selectedCategory;
         const matchSubcategory = selectedSubcategory === 'ทั้งหมด' || (p as any).subcategory === selectedSubcategory;
         return matchSearch && matchCategory && matchSubcategory;
