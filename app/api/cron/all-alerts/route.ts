@@ -108,7 +108,14 @@ async function getDailySummary(): Promise<string | null> {
 async function getLowStockAlert(): Promise<string | null> {
     const { data: products, error } = await supabase
         .from('products')
-        .select('name, min_stock_level, inventory(quantity)')
+        .select(`
+            name,
+            size,
+            min_stock_level,
+            master_categories(id, name),
+            master_subcategories(id, name),
+            inventory(quantity)
+        `)
         .eq('is_active', true);
 
     if (error) return null;
@@ -121,11 +128,40 @@ async function getLowStockAlert(): Promise<string | null> {
 
     if (lowStock.length === 0) return null;
 
-    const list = lowStock.slice(0, 999).map((p: any) =>
-        `• ${p.name}: เหลือ ${p.inventory?.[0]?.quantity || 0}`
-    ).join('\n');
+    // Group by main category and subcategory
+    const grouped: Record<string, Record<string, any[]>> = {};
 
-    return `⚠️ สินค้าใกล้หมด (${lowStock.length} รายการ)\n\n${list}`;
+    lowStock.forEach((p: any) => {
+        const categoryName = p.master_categories?.name || 'ไม่ระบุหมวดหมู่';
+        const subcategoryName = p.master_subcategories?.name || 'ทั่วไป';
+
+        if (!grouped[categoryName]) {
+            grouped[categoryName] = {};
+        }
+        if (!grouped[categoryName][subcategoryName]) {
+            grouped[categoryName][subcategoryName] = [];
+        }
+        grouped[categoryName][subcategoryName].push(p);
+    });
+
+    // Build message with categories
+    let messageLines: string[] = [];
+
+    Object.keys(grouped).sort().forEach(category => {
+        messageLines.push(`\n📁 ${category}`);
+
+        Object.keys(grouped[category]).sort().forEach(subcategory => {
+            messageLines.push(`  📂 ${subcategory}`);
+
+            grouped[category][subcategory].forEach((p: any) => {
+                const stock = p.inventory?.[0]?.quantity || 0;
+                const sizeText = p.size ? ` (${p.size})` : '';
+                messageLines.push(`    • ${p.name}${sizeText}: เหลือ ${stock}`);
+            });
+        });
+    });
+
+    return `⚠️ สินค้าใกล้หมด (${lowStock.length} รายการ)${messageLines.join('\n')}`;
 }
 
 // ========== 3. สินค้าหมดอายุ ==========

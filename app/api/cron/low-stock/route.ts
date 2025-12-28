@@ -39,12 +39,15 @@ async function sendLineGroupMessage(message: string): Promise<boolean> {
 
 export async function GET() {
     try {
-        // Fetch low stock products
+        // Fetch low stock products with category info and size
         const { data: products, error } = await supabase
             .from('products')
             .select(`
                 name,
+                size,
                 min_stock_level,
+                master_categories(id, name),
+                master_subcategories(id, name),
                 inventory(quantity)
             `)
             .eq('is_active', true)
@@ -62,19 +65,47 @@ export async function GET() {
             return NextResponse.json({ message: 'No low stock products' });
         }
 
-        // Build message
-        const productList = lowStockProducts.map((p: any) => {
-            const stock = p.inventory?.[0]?.quantity || 0;
-            return `• ${p.name}: เหลือ ${stock} ชิ้น`;
-        }).join('\n');
+        // Group by main category and subcategory
+        const grouped: Record<string, Record<string, any[]>> = {};
 
-        const message = `⚠️ แจ้งเตือนสินค้าใกล้หมด!\n\n${productList}\n\n📅 ${new Date().toLocaleDateString('th-TH')}`;
+        lowStockProducts.forEach((p: any) => {
+            const categoryName = p.master_categories?.name || 'ไม่ระบุหมวดหมู่';
+            const subcategoryName = p.master_subcategories?.name || 'ทั่วไป';
+
+            if (!grouped[categoryName]) {
+                grouped[categoryName] = {};
+            }
+            if (!grouped[categoryName][subcategoryName]) {
+                grouped[categoryName][subcategoryName] = [];
+            }
+            grouped[categoryName][subcategoryName].push(p);
+        });
+
+        // Build message with categories
+        let messageLines: string[] = [];
+
+        Object.keys(grouped).sort().forEach(category => {
+            messageLines.push(`\n📁 ${category}`);
+
+            Object.keys(grouped[category]).sort().forEach(subcategory => {
+                messageLines.push(`  📂 ${subcategory}`);
+
+                grouped[category][subcategory].forEach((p: any) => {
+                    const stock = p.inventory?.[0]?.quantity || 0;
+                    const sizeText = p.size ? ` (${p.size})` : '';
+                    messageLines.push(`    • ${p.name}${sizeText}: เหลือ ${stock}`);
+                });
+            });
+        });
+
+        const message = `⚠️ แจ้งเตือนสินค้าใกล้หมด!\n${messageLines.join('\n')}\n\n📅 ${new Date().toLocaleDateString('th-TH')} ${new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`;
 
         const sent = await sendLineGroupMessage(message);
 
         return NextResponse.json({
             success: sent,
-            lowStockCount: lowStockProducts.length
+            lowStockCount: lowStockProducts.length,
+            grouped
         });
     } catch (error: any) {
         console.error('Low stock cron error:', error);
