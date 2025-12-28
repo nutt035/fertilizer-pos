@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { supabase, CURRENT_BRANCH_ID } from '../../lib/supabase';
-import { Plus, Package, Edit, ArrowLeft, Trash2, Image as ImageIcon, Barcode, Scissors, Settings, Layers, ArrowUpDown, DollarSign, Copy } from 'lucide-react';
+import { Plus, Package, Edit, ArrowLeft, Trash2, Image as ImageIcon, Barcode, Scissors, Settings, Layers, ArrowUpDown, DollarSign, Copy, Printer } from 'lucide-react';
 import { useToast } from '../../components/common/Toast';
 
 // Components
@@ -17,7 +17,8 @@ import {
     StockDashboard,
     BarcodeManager,
     BulkAddModal,
-    BulkEditModal
+    BulkEditModal,
+    BarcodePrintModal
 } from '../../components/stock';
 
 // Types
@@ -70,6 +71,10 @@ export default function StockPage() {
 
     // Bulk Edit State  
     const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState(false);
+
+    // Barcode Print State
+    const [isBarcodePrintModalOpen, setIsBarcodePrintModalOpen] = useState(false);
+    const [showNoBarcodeOnly, setShowNoBarcodeOnly] = useState(false);
 
     // Sorting State
     type SortOption = 'created_desc' | 'updated_desc' | 'name_asc' | 'stock_desc' | 'stock_asc' | 'no_image' | 'expiry_soon';
@@ -495,6 +500,10 @@ export default function StockPage() {
     });
     const lowStockCount = lowStockProducts.length;
 
+    // คำนวณสินค้าที่ยังไม่มีบาร์โค้ด
+    const noBarcodeProducts = products.filter(p => !p.barcode || p.barcode.trim() === '');
+    const noBarcodeCount = noBarcodeProducts.length;
+
     console.log(products.map(p => ({
         name: p.name,
         stock: p.stock,
@@ -515,6 +524,11 @@ export default function StockPage() {
     if (showLowStockOnly) {
         const lowStockIds = new Set(lowStockProducts.map(p => p.id));
         filteredProducts = filteredProducts.filter(p => lowStockIds.has(p.id));
+    }
+
+    // Filter สินค้าที่ไม่มีบาร์โค้ด
+    if (showNoBarcodeOnly) {
+        filteredProducts = filteredProducts.filter(p => !p.barcode || p.barcode.trim() === '');
     }
 
     // ✅ Sorting
@@ -679,7 +693,7 @@ export default function StockPage() {
 
                     {lowStockCount > 0 && (
                         <button
-                            onClick={() => setShowLowStockOnly(!showLowStockOnly)}
+                            onClick={() => { setShowLowStockOnly(!showLowStockOnly); setShowNoBarcodeOnly(false); }}
                             className={`flex items-center gap-2 px-4 py-3 rounded-xl font-bold text-sm transition whitespace-nowrap ${showLowStockOnly
                                 ? 'bg-red-500 text-white'
                                 : 'bg-red-100 text-red-700 hover:bg-red-200'
@@ -691,6 +705,29 @@ export default function StockPage() {
                             </span>
                         </button>
                     )}
+
+                    {noBarcodeCount > 0 && (
+                        <button
+                            onClick={() => { setShowNoBarcodeOnly(!showNoBarcodeOnly); setShowLowStockOnly(false); }}
+                            className={`flex items-center gap-2 px-4 py-3 rounded-xl font-bold text-sm transition whitespace-nowrap ${showNoBarcodeOnly
+                                ? 'bg-indigo-500 text-white'
+                                : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                                }`}
+                        >
+                            <span>🏷️ ไม่มีบาร์โค้ด</span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${showNoBarcodeOnly ? 'bg-white text-indigo-500' : 'bg-indigo-500 text-white'}`}>
+                                {noBarcodeCount}
+                            </span>
+                        </button>
+                    )}
+
+                    {/* ปุ่มปริ้นบาร์โค้ด */}
+                    <button
+                        onClick={() => setIsBarcodePrintModalOpen(true)}
+                        className="flex items-center gap-2 px-4 py-3 rounded-xl font-bold text-sm transition whitespace-nowrap bg-gray-100 text-gray-700 hover:bg-gray-200 border-2 border-gray-200"
+                    >
+                        <Printer size={20} /> ปริ้นบาร์โค้ด
+                    </button>
                 </div>
 
                 <div className="flex flex-wrap gap-2 w-full lg:w-auto">
@@ -930,14 +967,20 @@ export default function StockPage() {
             <BulkEditModal
                 isOpen={isBulkEditModalOpen}
                 onClose={() => { setIsBulkEditModalOpen(false); focusScan(); }}
+                products={products}
+                onSaveComplete={fetchProducts}
+            />
+
+            <BarcodePrintModal
+                isOpen={isBarcodePrintModalOpen}
+                onClose={() => { setIsBarcodePrintModalOpen(false); focusScan(); }}
                 products={products.map(p => ({
                     id: p.id,
                     name: p.name,
-                    cost: p.cost,
+                    size: (p as any).size,
                     price: p.price,
-                    stock: p.stock
+                    barcode: p.barcode || ''
                 }))}
-                onSaveComplete={fetchProducts}
             />
         </div>
     );

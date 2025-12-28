@@ -18,7 +18,7 @@ interface BulkProductRow {
     unit_id: string;
     cost: number;
     price: number;
-    stock: number;
+    size: string;  // เปลี่ยนจาก stock เป็น size
     barcode: string;
 }
 
@@ -37,7 +37,7 @@ const createEmptyRow = (categories: MasterData[], units: MasterData[]): BulkProd
     unit_id: units[0]?.id || '',
     cost: 0,
     price: 0,
-    stock: 0,
+    size: '',  // เปลี่ยนจาก stock: 0 เป็น size: ''
     barcode: ''
 });
 
@@ -97,6 +97,7 @@ export default function BulkAddModal({
                         unit_id: row.unit_id,
                         cost: row.cost,
                         price: row.price,
+                        size: row.size.trim() || null,  // เพิ่ม size
                         is_active: true
                     })
                     .select()
@@ -110,24 +111,12 @@ export default function BulkAddModal({
 
                 const productId = productData.id;
 
-                // 2. Insert inventory
-                if (row.stock > 0) {
-                    await supabase.from('inventory').insert({
-                        branch_id: CURRENT_BRANCH_ID,
-                        product_id: productId,
-                        quantity: row.stock
-                    });
-
-                    await supabase.from('inventory_movements').insert({
-                        branch_id: CURRENT_BRANCH_ID,
-                        product_id: productId,
-                        type: 'ADJUST',
-                        quantity: row.stock,
-                        balance_after: row.stock,
-                        reason: 'สินค้าใหม่ (Bulk Add)',
-                        ref_type: 'MANUAL'
-                    });
-                }
+                // 2. Insert inventory with default 0 stock
+                await supabase.from('inventory').insert({
+                    branch_id: CURRENT_BRANCH_ID,
+                    product_id: productId,
+                    quantity: 0
+                });
 
                 // 3. Insert barcode if provided
                 if (row.barcode.trim()) {
@@ -201,7 +190,7 @@ export default function BulkAddModal({
                             <th className="p-3 w-28">หน่วย</th>
                             <th className="p-3 w-28 text-right">ราคาทุน</th>
                             <th className="p-3 w-28 text-right">ราคาขาย</th>
-                            <th className="p-3 w-24 text-right">จำนวน</th>
+                            <th className="p-3 w-28">ขนาด</th>
                             <th className="p-3 w-36">บาร์โค้ด</th>
                             <th className="p-3 w-12"></th>
                         </tr>
@@ -262,11 +251,11 @@ export default function BulkAddModal({
                                 </td>
                                 <td className="p-2">
                                     <input
-                                        type="number"
-                                        value={row.stock || ''}
-                                        onChange={(e) => updateRow(row.id, 'stock', Number(e.target.value))}
-                                        className="w-full border rounded-lg px-3 py-2 text-right bg-green-50"
-                                        placeholder="0"
+                                        type="text"
+                                        value={row.size}
+                                        onChange={(e) => updateRow(row.id, 'size', e.target.value)}
+                                        className="w-full border rounded-lg px-3 py-2 text-purple-600 font-medium"
+                                        placeholder="50kg, 1L..."
                                     />
                                 </td>
                                 <td className="p-2">

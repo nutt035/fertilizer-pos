@@ -12,6 +12,7 @@ interface ProductRow {
     cost: number;
     price: number;
     stock: number;
+    originalCost: number;  // เก็บ cost ตอนเปิด modal เพื่อใช้ filter
     hasChanged: boolean;
 }
 
@@ -24,6 +25,7 @@ interface BulkEditModalProps {
         cost: number;
         price: number;
         stock: number;
+        [key: string]: any;  // รองรับ fields อื่นๆ จาก StockProduct
     }>;
     onSaveComplete: () => void;
 }
@@ -53,6 +55,7 @@ export default function BulkEditModal({
                 cost: p.cost || 0,
                 price: p.price || 0,
                 stock: p.stock || 0,
+                originalCost: p.cost || 0,  // เก็บ cost เดิมไว้ filter
                 hasChanged: false
             }));
             setRows(productRows);
@@ -111,14 +114,14 @@ export default function BulkEditModal({
         }
     };
 
-    // Filter products
+    // Filter products - ใช้ originalCost เพื่อไม่ให้สินค้าหายตอนพิมพ์
     let displayRows = rows;
     if (showOnlyMissingCost) {
-        displayRows = rows.filter(row => row.cost === 0);
+        displayRows = rows.filter(row => row.originalCost === 0);
     }
 
     const changedCount = rows.filter(row => row.hasChanged).length;
-    const missingCostCount = rows.filter(row => row.cost === 0).length;
+    const missingCostCount = rows.filter(row => row.originalCost === 0).length;
 
     return (
         <Modal
