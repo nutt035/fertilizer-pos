@@ -173,6 +173,7 @@ export default function POSPage() {
       const formatted: CartItem[] = data.map((p: any) => ({
         id: p.id,
         name: p.name,
+        size: p.size,  // เพิ่ม size
         description: p.description,
         image_url: p.image_url,
         cost: p.cost,

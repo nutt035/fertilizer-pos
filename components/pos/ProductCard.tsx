@@ -50,6 +50,9 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                 <div>
                     <div className="text-gray-700 text-sm lg:text-lg leading-tight line-clamp-2 font-medium">
                         {product.name}
+                        {(product as any).size && (
+                            <span className="ml-1 text-purple-600 text-xs lg:text-sm font-normal">({(product as any).size})</span>
+                        )}
                     </div>
                     {product.description && (
                         <div className="text-gray-400 text-[10px] lg:text-xs leading-tight mt-0.5 line-clamp-1">
@@ -60,6 +63,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                 <div className="flex justify-between items-end mt-1 lg:mt-2">
                     <div className="text-red-500 font-bold text-lg lg:text-2xl">
                         {product.price.toLocaleString()}
+                        <span className="text-gray-500 text-xs lg:text-sm font-normal ml-1">/{product.unit || 'ชิ้น'}</span>
                     </div>
                     <div className={`text-[10px] lg:text-xs font-bold px-2 py-1 rounded ${product.stock <= 5 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
                         }`}>

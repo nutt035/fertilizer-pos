@@ -40,8 +40,12 @@ export default function BulkEditModal({
     const toast = useToast();
     const firstInputRef = useRef<HTMLInputElement>(null);
 
+    // ใช้ ref เก็บ isOpen ก่อนหน้า เพื่อเช็คว่าเปิด modal ใหม่หรือไม่
+    const prevIsOpenRef = useRef(false);
+
     useEffect(() => {
-        if (isOpen) {
+        // รัน only เมื่อ modal เพิ่งเปิดขึ้นมา (false -> true)
+        if (isOpen && !prevIsOpenRef.current) {
             // แปลง products เป็น rows
             const productRows = products.map(p => ({
                 id: p.id,
@@ -54,6 +58,7 @@ export default function BulkEditModal({
             setRows(productRows);
             setTimeout(() => firstInputRef.current?.focus(), 100);
         }
+        prevIsOpenRef.current = isOpen;
     }, [isOpen, products]);
 
     const updateRow = (id: string, field: 'cost' | 'price', value: number) => {
@@ -146,8 +151,8 @@ export default function BulkEditModal({
                 <button
                     onClick={() => setShowOnlyMissingCost(true)}
                     className={`px-4 py-2 rounded-lg font-bold transition ${showOnlyMissingCost
-                            ? 'bg-amber-600 text-white'
-                            : 'bg-white text-gray-600 border hover:bg-gray-100'
+                        ? 'bg-amber-600 text-white'
+                        : 'bg-white text-gray-600 border hover:bg-gray-100'
                         }`}
                 >
                     ⚠️ ยังไม่มีราคาทุน ({missingCostCount})
@@ -155,8 +160,8 @@ export default function BulkEditModal({
                 <button
                     onClick={() => setShowOnlyMissingCost(false)}
                     className={`px-4 py-2 rounded-lg font-bold transition ${!showOnlyMissingCost
-                            ? 'bg-amber-600 text-white'
-                            : 'bg-white text-gray-600 border hover:bg-gray-100'
+                        ? 'bg-amber-600 text-white'
+                        : 'bg-white text-gray-600 border hover:bg-gray-100'
                         }`}
                 >
                     📦 ทั้งหมด ({rows.length})
@@ -207,8 +212,8 @@ export default function BulkEditModal({
                                             value={row.cost || ''}
                                             onChange={(e) => updateRow(row.id, 'cost', Number(e.target.value))}
                                             className={`w-full border-2 rounded-lg px-4 py-3 text-right text-lg font-bold ${row.cost === 0
-                                                    ? 'border-amber-400 bg-amber-50'
-                                                    : 'border-gray-200'
+                                                ? 'border-amber-400 bg-amber-50'
+                                                : 'border-gray-200'
                                                 }`}
                                             placeholder="0"
                                         />
