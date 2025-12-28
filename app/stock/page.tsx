@@ -607,7 +607,12 @@ export default function StockPage() {
                         </a>
                     </div>
                 </div>
-                {loading && <div className="text-blue-600 font-bold animate-pulse text-sm">กำลังโหลด...</div>}
+                <div className="flex items-center gap-3">
+                    {loading && <div className="text-blue-600 font-bold animate-pulse text-sm">กำลังโหลด...</div>}
+                    <div className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold">
+                        📦 สินค้าทั้งหมด <span className="text-blue-600">{products.length}</span> รายการ
+                    </div>
+                </div>
             </div>
 
             {/* Dashboard */}
