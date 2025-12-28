@@ -84,6 +84,8 @@ export default function ProductModal({
 
         if (product) {
             // ✅ โหมดแก้ไข: ใช้ค่าจากสินค้าเดิม
+            // ดึงบาร์โค้ดจาก product_barcodes (เอาตัวแรก)
+            const firstBarcode = product.product_barcodes?.[0]?.barcode || product.barcode || '';
             setFormValue({
                 sku: product.sku || '',
                 name: product.name || '',
@@ -92,7 +94,7 @@ export default function ProductModal({
                 price: product.price || 0,
                 cost: product.cost || 0,
                 stock: product.stock || 0,
-                barcode: product.barcode || '',
+                barcode: firstBarcode,
                 category_id: product.category_id || '',
                 subcategory_id: product.subcategory_id || '',
                 unit_id: product.unit_id || '',
