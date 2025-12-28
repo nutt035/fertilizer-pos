@@ -249,17 +249,15 @@ export default function StockPage() {
             console.error('Error fetching products:', error);
         } else {
             const formatted = data?.map((p: any) => {
-                // เอาเฉพาะบาร์โค้ดที่สร้างเอง (is_custom = true หรือ null)
-                const customBarcodes = (p.product_barcodes || []).filter((b: any) =>
-                    b.is_custom === true || b.is_custom === null
-                );
+                // แสดงบาร์โค้ดตัวแรกจากทั้งหมด (ไม่ว่าจะ is_custom หรือไม่)
+                const firstBarcode = p.product_barcodes?.[0]?.barcode || '';
                 return {
                     ...p,
                     stock: p.inventory?.[0]?.quantity || 0,
                     category: p.master_categories?.name || '-',
                     subcategory: p.master_subcategories?.name || '',
                     unit: p.master_units?.name || '-',
-                    barcode: customBarcodes[0]?.barcode || '',
+                    barcode: firstBarcode,
                     product_barcodes: p.product_barcodes
                 };
             }) || [];
@@ -517,9 +515,12 @@ export default function StockPage() {
     });
     const lowStockCount = lowStockProducts.length;
 
-    // คำนวณสินค้าที่ยังไม่มีบาร์โค้ด
-    const noBarcodeProducts = products.filter(p => !p.barcode || p.barcode.trim() === '');
-    const noBarcodeCount = noBarcodeProducts.length;
+    // คำนวณสินค้าที่ยังไม่มีบาร์โค้ดสำหรับปริ้น (is_custom = true)
+    const noCustomBarcodeProducts = products.filter(p => {
+        const hasCustomBarcode = (p.product_barcodes || []).some((b: any) => b.is_custom === true);
+        return !hasCustomBarcode;
+    });
+    const noBarcodeCount = noCustomBarcodeProducts.length;
 
     console.log(products.map(p => ({
         name: p.name,
@@ -547,9 +548,12 @@ export default function StockPage() {
         filteredProducts = filteredProducts.filter(p => lowStockIds.has(p.id));
     }
 
-    // Filter สินค้าที่ไม่มีบาร์โค้ด
+    // Filter สินค้าที่ยังไม่มีบาร์โค้ดสำหรับปริ้น (is_custom = true)
     if (showNoBarcodeOnly) {
-        filteredProducts = filteredProducts.filter(p => !p.barcode || p.barcode.trim() === '');
+        filteredProducts = filteredProducts.filter(p => {
+            const hasCustomBarcode = (p.product_barcodes || []).some((b: any) => b.is_custom === true);
+            return !hasCustomBarcode;
+        });
     }
 
     // ✅ Sorting
@@ -732,7 +736,7 @@ export default function StockPage() {
                                 : 'bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100'
                                 }`}
                         >
-                            🏷️ ไม่มีบาร์โค้ด
+                            🖨️ ยังไม่ได้สร้าง
                             <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${showNoBarcodeOnly ? 'bg-white text-indigo-500' : 'bg-indigo-500 text-white'}`}>
                                 {noBarcodeCount}
                             </span>
