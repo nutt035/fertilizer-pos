@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Save, Trash2, Layers } from 'lucide-react';
+import { Plus, Save, Trash2, Layers, Tag } from 'lucide-react';
 import Modal from '../common/Modal';
 import { useToast } from '../common/Toast';
 import { supabase, CURRENT_BRANCH_ID } from '../../lib/supabase';
@@ -30,11 +30,11 @@ interface BulkAddModalProps {
     onSaveComplete: () => void;
 }
 
-const createEmptyRow = (categories: MasterData[], units: MasterData[]): BulkProductRow => ({
+const createEmptyRow = (categories: MasterData[], units: MasterData[], defaultCategoryId?: string, defaultUnitId?: string): BulkProductRow => ({
     id: crypto.randomUUID(),
     name: '',
-    category_id: categories[0]?.id || '',
-    unit_id: units[0]?.id || '',
+    category_id: defaultCategoryId || categories[0]?.id || '',
+    unit_id: defaultUnitId || units[0]?.id || '',
     cost: 0,
     price: 0,
     size: '',  // เปลี่ยนจาก stock: 0 เป็น size: ''
@@ -50,13 +50,20 @@ export default function BulkAddModal({
 }: BulkAddModalProps) {
     const [rows, setRows] = useState<BulkProductRow[]>([]);
     const [saving, setSaving] = useState(false);
+    const [bulkCategoryId, setBulkCategoryId] = useState('');
+    const [bulkUnitId, setBulkUnitId] = useState('');
     const toast = useToast();
     const firstInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (isOpen) {
+            // ตั้งค่าหมวดหมู่และหน่วยเริ่มต้น
+            const defaultCategoryId = categories[0]?.id || '';
+            const defaultUnitId = units[0]?.id || '';
+            setBulkCategoryId(defaultCategoryId);
+            setBulkUnitId(defaultUnitId);
             // สร้าง 5 แถวเริ่มต้น
-            setRows(Array.from({ length: 5 }, () => createEmptyRow(categories, units)));
+            setRows(Array.from({ length: 5 }, () => createEmptyRow(categories, units, defaultCategoryId, defaultUnitId)));
             setTimeout(() => firstInputRef.current?.focus(), 100);
         }
     }, [isOpen, categories, units]);
@@ -68,11 +75,23 @@ export default function BulkAddModal({
     };
 
     const addRows = (count: number = 5) => {
-        setRows(prev => [...prev, ...Array.from({ length: count }, () => createEmptyRow(categories, units))]);
+        setRows(prev => [...prev, ...Array.from({ length: count }, () => createEmptyRow(categories, units, bulkCategoryId, bulkUnitId))]);
     };
 
     const removeRow = (id: string) => {
         setRows(prev => prev.filter(row => row.id !== id));
+    };
+
+    // ใช้หมวดหมู่เดียวกันกับทุกแถว
+    const applyBulkCategory = (categoryId: string) => {
+        setBulkCategoryId(categoryId);
+        setRows(prev => prev.map(row => ({ ...row, category_id: categoryId })));
+    };
+
+    // ใช้หน่วยเดียวกันกับทุกแถว
+    const applyBulkUnit = (unitId: string) => {
+        setBulkUnitId(unitId);
+        setRows(prev => prev.map(row => ({ ...row, unit_id: unitId })));
     };
 
     const handleSaveAll = async () => {
@@ -153,26 +172,27 @@ export default function BulkAddModal({
             title="เพิ่มสินค้าหลายรายการ"
             headerColor="bg-green-600"
             size="full"
+            closeOnOutsideClick={false}
             footer={
-                <div className="flex items-center justify-between w-full">
-                    <div className="text-gray-500">
+                <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-3">
+                    <div className="text-gray-500 text-sm sm:text-base">
                         กรอกแล้ว <span className="font-bold text-green-600">{filledRowsCount}</span> รายการ
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 w-full sm:w-auto">
                         <button
                             onClick={() => addRows(5)}
-                            className="bg-gray-100 text-gray-700 px-6 py-3 rounded-lg font-bold hover:bg-gray-200 flex items-center gap-2"
+                            className="flex-1 sm:flex-none bg-gray-100 text-gray-700 px-4 sm:px-6 py-3 rounded-lg font-bold hover:bg-gray-200 flex items-center justify-center gap-2"
                         >
                             <Plus size={20} /> เพิ่ม 5 แถว
                         </button>
                         <button
                             onClick={handleSaveAll}
                             disabled={saving || filledRowsCount === 0}
-                            className="bg-green-600 text-white px-8 py-3 rounded-lg font-bold text-lg hover:bg-green-700 flex items-center gap-2 disabled:bg-gray-400"
+                            className="flex-1 sm:flex-none bg-green-600 text-white px-6 sm:px-8 py-3 rounded-lg font-bold text-base sm:text-lg hover:bg-green-700 flex items-center justify-center gap-2 disabled:bg-gray-400"
                         >
                             {saving ? 'กำลังบันทึก...' : (
                                 <>
-                                    <Save size={24} /> บันทึกทั้งหมด ({filledRowsCount})
+                                    <Save size={20} /> บันทึก ({filledRowsCount})
                                 </>
                             )}
                         </button>
@@ -180,6 +200,41 @@ export default function BulkAddModal({
                 </div>
             }
         >
+            {/* Bulk Category & Unit Selector */}
+            <div className="mb-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border-2 border-green-200">
+                <div className="flex items-center gap-2 mb-3">
+                    <Tag size={18} className="text-green-600" />
+                    <span className="font-bold text-green-800">ตั้งค่าสำหรับทุกแถว</span>
+                    <span className="text-sm text-green-600">(เลือกแล้วจะใช้กับทุกรายการ)</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-sm text-gray-600 font-medium mb-1 block">หมวดหมู่ทั้งหมด</label>
+                        <select
+                            value={bulkCategoryId}
+                            onChange={(e) => applyBulkCategory(e.target.value)}
+                            className="w-full border-2 border-green-300 rounded-lg px-3 py-2.5 bg-white font-medium focus:border-green-500 focus:outline-none"
+                        >
+                            {categories.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-sm text-gray-600 font-medium mb-1 block">หน่วยทั้งหมด</label>
+                        <select
+                            value={bulkUnitId}
+                            onChange={(e) => applyBulkUnit(e.target.value)}
+                            className="w-full border-2 border-green-300 rounded-lg px-3 py-2.5 bg-white font-medium focus:border-green-500 focus:outline-none"
+                        >
+                            {units.map(u => (
+                                <option key={u.id} value={u.id}>{u.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
             <div className="overflow-x-auto">
                 <table className="w-full min-w-[900px]">
                     <thead className="bg-gray-50 text-gray-600 text-left border-b sticky top-0">
@@ -306,3 +361,4 @@ export default function BulkAddModal({
         </Modal>
     );
 }
+

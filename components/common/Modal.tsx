@@ -12,6 +12,7 @@ interface ModalProps {
     size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
     children: React.ReactNode;
     footer?: React.ReactNode;
+    closeOnOutsideClick?: boolean;  // ปิด modal เมื่อคลิกข้างนอกหรือไม่
 }
 
 const sizeClasses = {
@@ -30,7 +31,8 @@ export default function Modal({
     headerColor = 'bg-blue-600',
     size = 'md',
     children,
-    footer
+    footer,
+    closeOnOutsideClick = true  // default: คลิกข้างนอกปิดได้
 }: ModalProps) {
     if (!isOpen) return null;
 
@@ -38,7 +40,7 @@ export default function Modal({
         <div
             className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
             onClick={(e) => {
-                if (e.target === e.currentTarget) onClose();
+                if (closeOnOutsideClick && e.target === e.currentTarget) onClose();
             }}
         >
             <div className={`bg-white w-full ${sizeClasses[size]} rounded-xl shadow-xl overflow-hidden max-h-[90vh] overflow-y-auto`}>
