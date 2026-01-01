@@ -78,6 +78,7 @@ export default function BarcodePrintModal({
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
 
+        // CSS สำหรับสติ๊กเกอร์ม้วน GAP ขนาด 32mm x 25mm
         printWindow.document.write(`
             <!DOCTYPE html>
             <html>
@@ -85,47 +86,73 @@ export default function BarcodePrintModal({
                 <title>พิมพ์บาร์โค้ด</title>
                 <style>
                     @page {
-                        size: 80mm auto;
+                        size: 32mm 25mm;
                         margin: 0;
                     }
-                    body {
-                        font-family: 'Arial', sans-serif;
+                    * {
                         margin: 0;
                         padding: 0;
-                        width: 80mm;
-                    }
-                    .barcode-label {
-                        width: 80mm;
-                        padding: 3mm;
-                        border-bottom: 1px dashed #ccc;
-                        page-break-inside: avoid;
-                        text-align: center;
                         box-sizing: border-box;
                     }
-                    .barcode-name {
-                        font-size: 12px;
+                    body {
+                        font-family: 'Arial', 'Helvetica', sans-serif;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    .label {
+                        width: 32mm;
+                        height: 25mm;
+                        box-sizing: border-box;
+                        padding: 1mm;
+                        text-align: center;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: center;
+                        align-items: center;
+                        page-break-after: always;
+                        break-after: page;
+                        overflow: hidden;
+                    }
+                    .label:last-child {
+                        page-break-after: auto;
+                        break-after: auto;
+                    }
+                    .label-name {
+                        font-size: 2mm;
                         font-weight: bold;
-                        margin-bottom: 2px;
+                        line-height: 1.1;
+                        max-height: 2.5mm;
                         overflow: hidden;
                         white-space: nowrap;
                         text-overflow: ellipsis;
+                        width: 100%;
+                        margin-bottom: 0.5mm;
                     }
-                    .barcode-size {
-                        font-weight: normal;
-                        color: #666;
-                        margin-left: 4px;
-                    }
-                    .barcode-price {
-                        font-size: 16px;
+                    .label-price {
+                        font-size: 3mm;
                         font-weight: bold;
-                        margin: 2px 0;
+                        margin-bottom: 0.5mm;
                     }
-                    .barcode-image {
-                        margin: 4px 0;
+                    .label-barcode {
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        flex: 1;
+                        width: 100%;
+                        max-height: 18mm;
                     }
-                    .barcode-image svg {
-                        width: 70mm !important;
-                        height: auto !important;
+                    .label-barcode svg {
+                        width: 28mm !important;
+                        max-width: 30mm !important;
+                        height: 10mm !important;
+                        max-height: 12mm !important;
+                    }
+                    /* ลดขนาด font ตัวเลขใต้บาร์โค้ด */
+                    .label-barcode svg text {
+                        font-size: 6pt !important;
+                    }
+                    .label-barcode svg rect {
+                        /* ensure bars are visible */
                     }
                 </style>
             </head>
@@ -137,12 +164,23 @@ export default function BarcodePrintModal({
 
         printWindow.document.close();
 
-        // รอให้ barcode render ก่อนค่อยปริ้น
+        // รอให้ barcode render เสร็จ (เพิ่มเวลาเพื่อความเสถียร)
+        printWindow.onload = () => {
+            setTimeout(() => {
+                printWindow.focus();
+                printWindow.print();
+                printWindow.close();
+            }, 800);
+        };
+
+        // Fallback กรณี onload ไม่ทำงาน
         setTimeout(() => {
-            printWindow.focus();
-            printWindow.print();
-            printWindow.close();
-        }, 500);
+            if (!printWindow.closed) {
+                printWindow.focus();
+                printWindow.print();
+                printWindow.close();
+            }
+        }, 1500);
     };
 
     const selectedProducts = productsWithBarcode.filter(p => selectedIds.has(p.id));
@@ -266,22 +304,22 @@ export default function BarcodePrintModal({
                 </div>
             </div>
 
-            {/* Hidden Print Content */}
+            {/* Hidden Print Content - 32mm x 25mm GAP Label */}
             <div ref={printRef} className="hidden">
                 {selectedProducts.map((product) => (
-                    <div key={product.id} className="barcode-label">
-                        <div className="barcode-name">
-                            {product.name}
-                            {product.size && <span className="barcode-size">({product.size})</span>}
+                    <div key={product.id} className="label">
+                        <div className="label-name">
+                            {product.name}{product.size ? ` (${product.size})` : ''}
                         </div>
-                        <div className="barcode-price">฿{product.price.toLocaleString()}.-</div>
-                        <div className="barcode-image">
+                        <div className="label-price">฿{product.price.toLocaleString()}</div>
+                        <div className="label-barcode">
                             <Barcode
                                 value={product.barcode}
-                                width={2}
-                                height={50}
-                                fontSize={14}
+                                width={1}
+                                height={30}
+                                fontSize={8}
                                 margin={0}
+                                displayValue={true}
                             />
                         </div>
                     </div>
