@@ -7,3 +7,4 @@ export { default as BarcodeManager } from './BarcodeManager';
 export { default as BulkAddModal } from './BulkAddModal';
 export { default as BulkEditModal } from './BulkEditModal';
 export { default as BarcodePrintModal } from './BarcodePrintModal';
+export { default as BulkImageModal } from './BulkImageModal';

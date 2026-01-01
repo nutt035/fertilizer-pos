@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { supabase, CURRENT_BRANCH_ID } from '../../lib/supabase';
-import { Plus, Package, Edit, ArrowLeft, Trash2, Image as ImageIcon, Barcode, Scissors, Settings, Layers, ArrowUpDown, DollarSign, Copy, Printer } from 'lucide-react';
+import { Plus, Package, Edit, ArrowLeft, Trash2, Image as ImageIcon, Barcode, Scissors, Settings, Layers, ArrowUpDown, DollarSign, Copy, Printer, Upload } from 'lucide-react';
 import { useToast } from '../../components/common/Toast';
 
 // Components
@@ -18,7 +18,8 @@ import {
     BarcodeManager,
     BulkAddModal,
     BulkEditModal,
-    BarcodePrintModal
+    BarcodePrintModal,
+    BulkImageModal
 } from '../../components/stock';
 
 // Types
@@ -79,6 +80,11 @@ export default function StockPage() {
     // Sorting State
     type SortOption = 'created_desc' | 'updated_desc' | 'name_asc' | 'stock_desc' | 'stock_asc' | 'no_image' | 'expiry_soon';
     const [sortBy, setSortBy] = useState<SortOption>('created_desc');
+
+    // Quick Image Upload State
+    const [uploadingImageId, setUploadingImageId] = useState<string | null>(null);
+    const [isBulkImageModalOpen, setIsBulkImageModalOpen] = useState(false);
+    const [dragOverProductId, setDragOverProductId] = useState<string | null>(null);
 
     // Form State
     const [selectedProduct, setSelectedProduct] = useState<StockProduct | null>(null);
@@ -504,6 +510,69 @@ export default function StockPage() {
         focusScan();
     };
 
+    // ✅ Quick Image Upload - กดที่รูปแล้วอัปโหลดได้เลย
+    const handleQuickImageUpload = async (productId: string, file: File) => {
+        if (!file.type.startsWith('image/')) {
+            toast.warning('กรุณาเลือกไฟล์รูปภาพ');
+            return;
+        }
+
+        setUploadingImageId(productId);
+
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${productId}_${Date.now()}.${fileExt}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('product-images')
+                .upload(fileName, file);
+
+            if (uploadError) {
+                throw new Error('อัปโหลดไม่สำเร็จ: ' + uploadError.message);
+            }
+
+            const { data } = supabase.storage.from('product-images').getPublicUrl(fileName);
+
+            const { error: updateError } = await supabase
+                .from('products')
+                .update({ image_url: data.publicUrl })
+                .eq('id', productId);
+
+            if (updateError) {
+                throw new Error('บันทึกไม่สำเร็จ: ' + updateError.message);
+            }
+
+            toast.success('อัปโหลดรูปเรียบร้อย!');
+            fetchProductsKeepScroll();
+        } catch (error: any) {
+            toast.error(error.message);
+        } finally {
+            setUploadingImageId(null);
+        }
+    };
+
+    // ✅ Drag & Drop Image handlers
+    const handleImageDragOver = (e: React.DragEvent, productId: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragOverProductId(productId);
+    };
+
+    const handleImageDragLeave = () => {
+        setDragOverProductId(null);
+    };
+
+    const handleImageDrop = async (e: React.DragEvent, productId: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragOverProductId(null);
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            await handleQuickImageUpload(productId, files[0]);
+        }
+    };
+
     // Calculations
     const totalCost = products.reduce((sum, p) => sum + (p.cost * p.stock), 0);
     const totalValue = products.reduce((sum, p) => sum + (p.price * p.stock), 0);
@@ -766,6 +835,12 @@ export default function StockPage() {
                             <Printer size={18} /> ปริ้นบาร์โค้ด
                         </button>
                         <button
+                            onClick={() => setIsBulkImageModalOpen(true)}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-sm transition bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100"
+                        >
+                            <ImageIcon size={18} /> อัปโหลดรูปหลายตัว
+                        </button>
+                        <button
                             onClick={() => setIsSplitModalOpen(true)}
                             className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-sm transition bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100"
                         >
@@ -808,16 +883,31 @@ export default function StockPage() {
                 {filteredProducts.map((product) => (
                     <div key={product.id} className="bg-white rounded-xl shadow-sm p-4 border">
                         <div className="flex gap-3">
-                            {/* รูป */}
-                            <div className="shrink-0">
+                            {/* รูป - clickable upload */}
+                            <label className={`shrink-0 block w-16 h-16 rounded-lg cursor-pointer relative overflow-hidden ${uploadingImageId === product.id ? 'opacity-50' : ''}`}>
                                 {product.image_url ? (
-                                    <img src={product.image_url} alt="" className="w-16 h-16 object-cover bg-gray-100 rounded-lg border" />
+                                    <img src={product.image_url} alt="" className="w-full h-full object-cover bg-gray-100 rounded-lg border" />
                                 ) : (
-                                    <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400">
-                                        <ImageIcon size={20} />
+                                    <div className="w-full h-full bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-400">
+                                        <Upload size={16} />
+                                        <span className="text-[9px]">อัปโหลด</span>
                                     </div>
                                 )}
-                            </div>
+                                {uploadingImageId === product.id && (
+                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg">
+                                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    </div>
+                                )}
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        if (e.target.files?.[0]) handleQuickImageUpload(product.id, e.target.files[0]);
+                                        e.target.value = '';
+                                    }}
+                                />
+                            </label>
                             {/* ข้อมูล */}
                             <div className="flex-1 min-w-0">
                                 {product.sku && (
@@ -891,13 +981,40 @@ export default function StockPage() {
                             {filteredProducts.map((product) => (
                                 <tr key={product.id} className="border-b hover:bg-blue-50 transition">
                                     <td className="p-4">
-                                        {product.image_url ? (
-                                            <img src={product.image_url} alt="" className="w-16 h-16 object-cover bg-gray-100 rounded-lg border" />
-                                        ) : (
-                                            <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400">
-                                                <ImageIcon size={24} />
-                                            </div>
-                                        )}
+                                        <label
+                                            className={`block w-16 h-16 rounded-lg cursor-pointer relative overflow-hidden transition-all ${dragOverProductId === product.id
+                                                ? 'ring-4 ring-blue-400 ring-offset-2'
+                                                : 'hover:ring-2 hover:ring-blue-300'
+                                                } ${uploadingImageId === product.id ? 'opacity-50' : ''}`}
+                                            onDragOver={(e) => handleImageDragOver(e, product.id)}
+                                            onDragLeave={handleImageDragLeave}
+                                            onDrop={(e) => handleImageDrop(e, product.id)}
+                                        >
+                                            {product.image_url ? (
+                                                <img src={product.image_url} alt="" className="w-full h-full object-cover bg-gray-100 border rounded-lg" />
+                                            ) : (
+                                                <div className="w-full h-full bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 transition">
+                                                    <Upload size={18} />
+                                                    <span className="text-[10px] mt-0.5">อัปโหลด</span>
+                                                </div>
+                                            )}
+                                            {uploadingImageId === product.id && (
+                                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg">
+                                                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                </div>
+                                            )}
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                    if (e.target.files?.[0]) {
+                                                        handleQuickImageUpload(product.id, e.target.files[0]);
+                                                    }
+                                                    e.target.value = '';
+                                                }}
+                                            />
+                                        </label>
                                     </td>
 
                                     <td className="p-4">
@@ -1042,6 +1159,18 @@ export default function StockPage() {
                         barcode: b.barcode
                     }));
                 })}
+            />
+
+            <BulkImageModal
+                isOpen={isBulkImageModalOpen}
+                onClose={() => { setIsBulkImageModalOpen(false); focusScan(); }}
+                products={products.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    sku: p.sku,
+                    image_url: p.image_url || undefined
+                }))}
+                onUpload={handleQuickImageUpload}
             />
         </div>
     );

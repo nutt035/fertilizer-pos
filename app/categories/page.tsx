@@ -9,6 +9,7 @@ import { useToast } from '../../components/common/Toast';
 interface Product {
     id: string;
     name: string;
+    size?: string;
     category_id: string;
     subcategory_id?: string;
     image_url?: string;
@@ -53,7 +54,7 @@ export default function CategoriesPage() {
         const [catsRes, subCatsRes, prodsRes] = await Promise.all([
             supabase.from('master_categories').select('id, name').order('sort_order', { ascending: true }),
             supabase.from('master_subcategories').select('id, name, category_id').order('name', { ascending: true }),
-            supabase.from('products').select('id, name, category_id, subcategory_id, image_url').eq('is_active', true).order('name', { ascending: true })
+            supabase.from('products').select('id, name, size, category_id, subcategory_id, image_url').eq('is_active', true).order('name', { ascending: true })
         ]);
 
         const cats = catsRes.data || [];
@@ -436,7 +437,10 @@ export default function CategoriesPage() {
                                                     ) : (
                                                         /* Normal Mode */
                                                         <>
-                                                            <span className="truncate flex-1">{product.name}</span>
+                                                            <span className="truncate flex-1">
+                                                                {product.name}
+                                                                {product.size && <span className="ml-1 text-purple-500 text-xs">({product.size})</span>}
+                                                            </span>
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); setEditingProductId(product.id); }}
                                                                 className="text-gray-400 hover:text-blue-600 p-1 rounded hover:bg-blue-100 transition"
@@ -521,7 +525,10 @@ export default function CategoriesPage() {
                                                             ) : (
                                                                 /* Normal Mode */
                                                                 <>
-                                                                    <span className="truncate flex-1">{product.name}</span>
+                                                                    <span className="truncate flex-1">
+                                                                        {product.name}
+                                                                        {product.size && <span className="ml-1 text-purple-500 text-xs">({product.size})</span>}
+                                                                    </span>
                                                                     <button
                                                                         onClick={(e) => { e.stopPropagation(); setEditingProductId(product.id); }}
                                                                         className="text-gray-400 hover:text-blue-600 p-1 rounded hover:bg-blue-100 transition"
