@@ -78,7 +78,7 @@ export default function BarcodePrintModal({
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
 
-        // CSS สำหรับสติ๊กเกอร์ม้วน GAP ขนาด 32mm x 25mm
+        // CSS สำหรับสติ๊กเกอร์ม้วน GAP ขนาด 32mm x 25mm แบบ 3 แถว (3 columns)
         printWindow.document.write(`
             <!DOCTYPE html>
             <html>
@@ -86,7 +86,7 @@ export default function BarcodePrintModal({
                 <title>พิมพ์บาร์โค้ด</title>
                 <style>
                     @page {
-                        size: 32mm 25mm;
+                        size: 96mm 25mm;
                         margin: 0;
                     }
                     * {
@@ -98,6 +98,19 @@ export default function BarcodePrintModal({
                         font-family: 'Arial', 'Helvetica', sans-serif;
                         margin: 0;
                         padding: 0;
+                        width: 96mm;
+                    }
+                    .label-row {
+                        width: 96mm;
+                        height: 25mm;
+                        display: flex;
+                        flex-direction: row;
+                        page-break-after: always;
+                        break-after: page;
+                    }
+                    .label-row:last-child {
+                        page-break-after: auto;
+                        break-after: auto;
                     }
                     .label {
                         width: 32mm;
@@ -109,13 +122,7 @@ export default function BarcodePrintModal({
                         flex-direction: column;
                         justify-content: center;
                         align-items: center;
-                        page-break-after: always;
-                        break-after: page;
                         overflow: hidden;
-                    }
-                    .label:last-child {
-                        page-break-after: auto;
-                        break-after: auto;
                     }
                     .label-name {
                         font-size: 2mm;
@@ -150,9 +157,6 @@ export default function BarcodePrintModal({
                     /* ลดขนาด font ตัวเลขใต้บาร์โค้ด */
                     .label-barcode svg text {
                         font-size: 6pt !important;
-                    }
-                    .label-barcode svg rect {
-                        /* ensure bars are visible */
                     }
                 </style>
             </head>
@@ -304,24 +308,29 @@ export default function BarcodePrintModal({
                 </div>
             </div>
 
-            {/* Hidden Print Content - 32mm x 25mm GAP Label */}
+            {/* Hidden Print Content - 32mm x 25mm GAP Label (3 columns) */}
             <div ref={printRef} className="hidden">
-                {selectedProducts.map((product) => (
-                    <div key={product.id} className="label">
-                        <div className="label-name">
-                            {product.name}{product.size ? ` (${product.size})` : ''}
-                        </div>
-                        <div className="label-price">฿{product.price.toLocaleString()}</div>
-                        <div className="label-barcode">
-                            <Barcode
-                                value={product.barcode}
-                                width={1}
-                                height={30}
-                                fontSize={8}
-                                margin={0}
-                                displayValue={true}
-                            />
-                        </div>
+                {/* Group labels into rows of 3 */}
+                {Array.from({ length: Math.ceil(selectedProducts.length / 3) }, (_, rowIndex) => (
+                    <div key={rowIndex} className="label-row">
+                        {selectedProducts.slice(rowIndex * 3, rowIndex * 3 + 3).map((product) => (
+                            <div key={product.id} className="label">
+                                <div className="label-name">
+                                    {product.name}{product.size ? ` (${product.size})` : ''}
+                                </div>
+                                <div className="label-price">฿{product.price.toLocaleString()}</div>
+                                <div className="label-barcode">
+                                    <Barcode
+                                        value={product.barcode}
+                                        width={1}
+                                        height={30}
+                                        fontSize={8}
+                                        margin={0}
+                                        displayValue={true}
+                                    />
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 ))}
             </div>
