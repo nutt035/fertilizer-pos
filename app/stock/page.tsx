@@ -1168,6 +1168,7 @@ export default function StockPage() {
                     id: p.id,
                     name: p.name,
                     sku: p.sku,
+                    size: (p as any).size,
                     image_url: p.image_url || undefined
                 }))}
                 onUpload={handleQuickImageUpload}

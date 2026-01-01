@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { Upload, Image as ImageIcon, Check, X, AlertCircle } from 'lucide-react';
+import { Upload, Image as ImageIcon, Check, X, AlertCircle, Search } from 'lucide-react';
 import Modal from '../common/Modal';
 
 interface Product {
     id: string;
     name: string;
     sku?: string;
+    size?: string;
     image_url?: string;
 }
 
@@ -16,6 +17,8 @@ interface MatchedFile {
     preview: string;
     matchedProduct: Product | null;
     matchType: 'name' | 'sku' | 'none';
+    searchTerm: string;
+    showDropdown: boolean;
 }
 
 interface BulkImageModalProps {
@@ -59,7 +62,9 @@ export default function BulkImageModal({ isOpen, onClose, products, onUpload }: 
                 file,
                 preview: URL.createObjectURL(file),
                 matchedProduct: product,
-                matchType
+                matchType,
+                searchTerm: product ? `${product.name}${product.size ? ` (${product.size})` : ''}` : '',
+                showDropdown: false
             });
         });
 
@@ -75,17 +80,51 @@ export default function BulkImageModal({ isOpen, onClose, products, onUpload }: 
         });
     };
 
-    const changeProductMatch = (index: number, productId: string) => {
+    const updateSearchTerm = (index: number, value: string) => {
         setMatchedFiles(prev => {
             const newList = [...prev];
-            const product = products.find(p => p.id === productId) || null;
             newList[index] = {
                 ...newList[index],
-                matchedProduct: product,
-                matchType: product ? 'name' : 'none'
+                searchTerm: value,
+                showDropdown: true
             };
             return newList;
         });
+    };
+
+    const selectProduct = (index: number, product: Product | null) => {
+        setMatchedFiles(prev => {
+            const newList = [...prev];
+            newList[index] = {
+                ...newList[index],
+                matchedProduct: product,
+                matchType: product ? 'name' : 'none',
+                searchTerm: product ? `${product.name}${product.size ? ` (${product.size})` : ''}` : '',
+                showDropdown: false
+            };
+            return newList;
+        });
+    };
+
+    const toggleDropdown = (index: number, show: boolean) => {
+        setMatchedFiles(prev => {
+            const newList = [...prev];
+            newList[index] = {
+                ...newList[index],
+                showDropdown: show
+            };
+            return newList;
+        });
+    };
+
+    const getFilteredProducts = (searchTerm: string) => {
+        if (!searchTerm.trim()) return products.slice(0, 10);
+        const term = searchTerm.toLowerCase();
+        return products.filter(p =>
+            p.name.toLowerCase().includes(term) ||
+            (p.sku && p.sku.toLowerCase().includes(term)) ||
+            (p.size && p.size.toLowerCase().includes(term))
+        ).slice(0, 10);
     };
 
     const handleUploadAll = async () => {
@@ -179,39 +218,91 @@ export default function BulkImageModal({ isOpen, onClose, products, onUpload }: 
                             <div
                                 key={index}
                                 className={`flex items-center gap-3 p-3 rounded-xl border-2 ${matched.matchedProduct
-                                        ? 'border-green-200 bg-green-50'
-                                        : 'border-orange-200 bg-orange-50'
+                                    ? 'border-green-200 bg-green-50'
+                                    : 'border-orange-200 bg-orange-50'
                                     }`}
                             >
                                 {/* Preview */}
                                 <img
                                     src={matched.preview}
                                     alt=""
-                                    className="w-14 h-14 object-cover rounded-lg border"
+                                    className="w-14 h-14 object-cover rounded-lg border shrink-0"
                                 />
 
-                                {/* File Info */}
+                                {/* File Info + Search */}
                                 <div className="flex-1 min-w-0">
-                                    <div className="text-sm font-bold text-gray-700 truncate">
-                                        {matched.file.name}
+                                    <div className="text-xs text-gray-500 truncate mb-1">
+                                        📁 {matched.file.name}
                                     </div>
 
-                                    {/* Product Selector */}
-                                    <select
-                                        value={matched.matchedProduct?.id || ''}
-                                        onChange={(e) => changeProductMatch(index, e.target.value)}
-                                        className={`mt-1 w-full text-sm border rounded-lg px-2 py-1 ${matched.matchedProduct
-                                                ? 'border-green-300 bg-white'
-                                                : 'border-orange-300 bg-white'
-                                            }`}
-                                    >
-                                        <option value="">-- เลือกสินค้า --</option>
-                                        {products.map(p => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.sku ? `[${p.sku}] ` : ''}{p.name}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    {/* Searchable Product Input */}
+                                    <div className="relative">
+                                        <div className="relative">
+                                            <Search size={16} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                                            <input
+                                                type="text"
+                                                value={matched.searchTerm}
+                                                onChange={(e) => updateSearchTerm(index, e.target.value)}
+                                                onFocus={() => toggleDropdown(index, true)}
+                                                onBlur={() => setTimeout(() => toggleDropdown(index, false), 200)}
+                                                placeholder="🔍 พิมพ์ชื่อหรือ SKU เพื่อค้นหา..."
+                                                className={`w-full pl-8 pr-3 py-2 text-sm border-2 rounded-lg focus:outline-none ${matched.matchedProduct
+                                                        ? 'border-green-300 bg-white focus:border-green-500'
+                                                        : 'border-orange-300 bg-white focus:border-orange-500'
+                                                    }`}
+                                            />
+                                        </div>
+
+                                        {/* Dropdown Results */}
+                                        {matched.showDropdown && (
+                                            <div className="absolute z-10 w-full mt-1 bg-white border-2 border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                                {getFilteredProducts(matched.searchTerm).length > 0 ? (
+                                                    getFilteredProducts(matched.searchTerm).map(p => (
+                                                        <button
+                                                            key={p.id}
+                                                            onMouseDown={(e) => e.preventDefault()}
+                                                            onClick={() => selectProduct(index, p)}
+                                                            className={`w-full text-left px-3 py-2 hover:bg-purple-50 transition flex items-center gap-2 ${matched.matchedProduct?.id === p.id ? 'bg-green-50' : ''
+                                                                }`}
+                                                        >
+                                                            {p.image_url ? (
+                                                                <img src={p.image_url} className="w-8 h-8 rounded object-cover" />
+                                                            ) : (
+                                                                <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center text-gray-400">
+                                                                    <ImageIcon size={14} />
+                                                                </div>
+                                                            )}
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="text-sm font-bold text-gray-800 truncate">
+                                                                    {p.name}
+                                                                    {p.size && <span className="ml-1 text-purple-500 font-normal">({p.size})</span>}
+                                                                </div>
+                                                                {p.sku && <div className="text-xs text-blue-500">[{p.sku}]</div>}
+                                                            </div>
+                                                            {matched.matchedProduct?.id === p.id && (
+                                                                <Check size={16} className="text-green-500" />
+                                                            )}
+                                                        </button>
+                                                    ))
+                                                ) : (
+                                                    <div className="px-3 py-4 text-center text-gray-400 text-sm">
+                                                        ไม่พบสินค้า
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Selected Product Badge */}
+                                    {matched.matchedProduct && (
+                                        <div className="mt-1 flex items-center gap-1 text-xs text-green-600">
+                                            <Check size={12} />
+                                            <span>เลือกแล้ว: {matched.matchedProduct.name}</span>
+                                            {matched.matchedProduct.size && (
+                                                <span className="text-purple-500">({matched.matchedProduct.size})</span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Status Icon */}
