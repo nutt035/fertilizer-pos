@@ -20,6 +20,9 @@
 # production
 /build
 
+#print-server
+/print-server/
+
 # misc
 .DS_Store
 *.pem
@@ -39,3 +42,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+print-server/server.js

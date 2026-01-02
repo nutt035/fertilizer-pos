@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, DollarSign, Search, X } from 'lucide-react';
+import { Save, DollarSign, Search, X, Package } from 'lucide-react';
 import Modal from '../common/Modal';
 import { useToast } from '../common/Toast';
 import { supabase } from '../../lib/supabase';
@@ -10,6 +10,7 @@ interface ProductRow {
     id: string;
     name: string;
     size: string;  // ขนาดสินค้า
+    image_url?: string; // รูปสินค้า
     cost: number;
     price: number;
     stock: number;
@@ -56,6 +57,7 @@ export default function BulkEditModal({
                 id: p.id,
                 name: p.name,
                 size: p.size || '',  // ขนาดสินค้า
+                image_url: p.image_url || '',  // รูปสินค้า
                 cost: p.cost || 0,
                 price: p.price || 0,
                 stock: p.stock || 0,
@@ -69,7 +71,7 @@ export default function BulkEditModal({
         prevIsOpenRef.current = isOpen;
     }, [isOpen, products]);
 
-    const updateRow = (id: string, field: 'cost' | 'price', value: number) => {
+    const updateRow = (id: string, field: 'cost' | 'price' | 'size', value: number | string) => {
         setRows(prev => prev.map(row =>
             row.id === id ? { ...row, [field]: value, hasChanged: true } : row
         ));
@@ -91,6 +93,7 @@ export default function BulkEditModal({
                 const { error } = await supabase
                     .from('products')
                     .update({
+                        size: row.size || null,
                         cost: row.cost,
                         price: row.price
                     })
@@ -140,7 +143,7 @@ export default function BulkEditModal({
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title="แก้ไขราคาด่วน"
+            title="แก้ไขสินค้าด่วน (ขนาด/ราคา)"
             headerColor="bg-amber-600"
             size="full"
             closeOnOutsideClick={false}
@@ -230,23 +233,40 @@ export default function BulkEditModal({
                                     : 'border-gray-200 bg-white'
                                     }`}
                             >
-                                {/* Product Name & Stock */}
-                                <div className="flex items-start justify-between mb-3">
-                                    <div className="flex-1">
-                                        <div className="font-bold text-gray-800 text-base leading-tight">
-                                            {row.name}
-                                        </div>
-                                        {row.size && (
-                                            <span className="inline-block mt-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">
-                                                {row.size}
-                                            </span>
+                                {/* Product Image, Name & Stock */}
+                                <div className="flex items-start gap-3 mb-3">
+                                    {/* Product Image */}
+                                    <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center overflow-hidden flex-shrink-0 border">
+                                        {row.image_url ? (
+                                            <img
+                                                src={row.image_url}
+                                                alt={row.name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <Package size={24} className="text-gray-300" />
                                         )}
                                     </div>
-                                    <div className={`ml-2 px-2 py-1 rounded-lg text-sm font-bold ${row.stock > 0
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-bold text-gray-800 text-base leading-tight mb-2 truncate">
+                                            {row.name}
+                                        </div>
+                                        <div>
+                                            <label className="text-xs text-gray-500 font-medium">ขนาด</label>
+                                            <input
+                                                type="text"
+                                                value={row.size || ''}
+                                                onChange={(e) => updateRow(row.id, 'size', e.target.value)}
+                                                className="w-full border-2 border-purple-200 rounded-lg px-2 py-1 text-sm font-medium text-purple-700 bg-purple-50"
+                                                placeholder="เช่น 50 กก."
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className={`px-2 py-1 rounded-lg text-sm font-bold flex-shrink-0 ${row.stock > 0
                                         ? 'bg-green-100 text-green-700'
                                         : 'bg-red-100 text-red-600'
                                         }`}>
-                                        คงเหลือ {row.stock}
+                                        {row.stock}
                                     </div>
                                 </div>
 
@@ -291,11 +311,12 @@ export default function BulkEditModal({
                             <thead className="bg-gray-50 text-gray-600 text-left border-b sticky top-0">
                                 <tr>
                                     <th className="p-3 w-10">#</th>
+                                    <th className="p-3 w-16">รูป</th>
                                     <th className="p-3">ชื่อสินค้า</th>
-                                    <th className="p-3 w-24">ขนาด</th>
-                                    <th className="p-3 w-28 text-center">คงเหลือ</th>
-                                    <th className="p-3 w-36 text-right">ราคาทุน</th>
-                                    <th className="p-3 w-36 text-right">ราคาขาย</th>
+                                    <th className="p-3 w-28">ขนาด</th>
+                                    <th className="p-3 w-20 text-center">คงเหลือ</th>
+                                    <th className="p-3 w-32 text-right">ราคาทุน</th>
+                                    <th className="p-3 w-32 text-right">ราคาขาย</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -306,16 +327,29 @@ export default function BulkEditModal({
                                     >
                                         <td className="p-3 text-gray-400 text-center">{index + 1}</td>
                                         <td className="p-3">
+                                            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center overflow-hidden border">
+                                                {row.image_url ? (
+                                                    <img
+                                                        src={row.image_url}
+                                                        alt={row.name}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <Package size={20} className="text-gray-300" />
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="p-3">
                                             <div className="font-bold text-gray-800">{row.name}</div>
                                         </td>
                                         <td className="p-3">
-                                            {row.size ? (
-                                                <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-sm font-medium">
-                                                    {row.size}
-                                                </span>
-                                            ) : (
-                                                <span className="text-gray-300">-</span>
-                                            )}
+                                            <input
+                                                type="text"
+                                                value={row.size || ''}
+                                                onChange={(e) => updateRow(row.id, 'size', e.target.value)}
+                                                className="w-full border-2 border-purple-200 rounded-lg px-3 py-2 text-sm font-bold text-purple-700 bg-purple-50 focus:border-purple-400 focus:outline-none"
+                                                placeholder="-"
+                                            />
                                         </td>
                                         <td className="p-3 text-center">
                                             <span className={`font-bold ${row.stock > 0 ? 'text-green-600' : 'text-red-500'}`}>

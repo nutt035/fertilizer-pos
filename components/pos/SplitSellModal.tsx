@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Scissors, Calculator, Package } from 'lucide-react';
+import { Scissors, Package, ArrowLeft, Scale, Banknote, Check, X } from 'lucide-react';
 import Modal from '../common/Modal';
 import { supabase, CURRENT_BRANCH_ID } from '../../lib/supabase';
 import { useToast } from '../common/Toast';
@@ -14,7 +14,8 @@ interface Product {
     size?: string;
     unit?: string;
     stock: number;
-    remainder_kg?: number; // เศษกิโลที่เหลือจากการแบ่ง
+    image_url?: string;
+    remainder_kg?: number;
 }
 
 interface SplitSellModalProps {
@@ -25,10 +26,11 @@ interface SplitSellModalProps {
 }
 
 export default function SplitSellModal({ isOpen, onClose, products, onAddToCart }: SplitSellModalProps) {
-    const [selectedProductId, setSelectedProductId] = useState<string>('');
+    const [step, setStep] = useState<'select' | 'weight' | 'price'>('select');
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [weightKg, setWeightKg] = useState('');
     const [sellPrice, setSellPrice] = useState('');
-    const [weightPerBag, setWeightPerBag] = useState(50); // กิโลต่อกระสอบ
+    const [weightPerBag, setWeightPerBag] = useState(50);
     const toast = useToast();
 
     // Filter only products with "กก" or "กระสอบ" in size/unit
@@ -37,35 +39,80 @@ export default function SplitSellModal({ isOpen, onClose, products, onAddToCart 
         (p.unit && (p.unit.includes('กก') || p.unit.includes('กระสอบ') || p.unit.includes('ก.ก')))
     );
 
-    const selectedProduct = splittableProducts.find(p => p.id === selectedProductId);
-
     // Calculations
     const kg = Number(weightKg) || 0;
     const price = Number(sellPrice) || 0;
-
-    // ต้นทุนต่อกิโล = ต้นทุนกระสอบ / น้ำหนักต่อกระสอบ
     const costPerKg = selectedProduct ? selectedProduct.cost / weightPerBag : 0;
     const totalCost = costPerKg * kg;
     const profit = price - totalCost;
-    const profitPercent = totalCost > 0 ? ((profit / totalCost) * 100) : 0;
 
-    // Current stock in kg
     const currentStockInKg = selectedProduct
         ? (selectedProduct.stock * weightPerBag) + (selectedProduct.remainder_kg || 0)
         : 0;
 
-    // After sale
     const remainingKg = currentStockInKg - kg;
     const newBags = Math.floor(remainingKg / weightPerBag);
     const newRemainder = remainingKg % weightPerBag;
 
     useEffect(() => {
         if (isOpen) {
-            setSelectedProductId('');
+            setStep('select');
+            setSelectedProduct(null);
             setWeightKg('');
             setSellPrice('');
         }
     }, [isOpen]);
+
+    // ปุ่มตัวเลขสำหรับกด
+    const handleNumPad = (num: string, target: 'weight' | 'price') => {
+        const setter = target === 'weight' ? setWeightKg : setSellPrice;
+        const current = target === 'weight' ? weightKg : sellPrice;
+
+        if (num === 'C') {
+            setter('');
+        } else if (num === '⌫') {
+            setter(current.slice(0, -1));
+        } else if (num === '.') {
+            if (!current.includes('.')) {
+                setter(current + num);
+            }
+        } else {
+            setter(current + num);
+        }
+    };
+
+    // ปุ่มลัดน้ำหนัก
+    const quickWeights = [1, 2, 3, 5, 10, 15, 20, 25, 30];
+
+    // ปุ่มลัดราคา (คำนวณจากต้นทุน + กำไร)
+    const getQuickPrices = () => {
+        if (!selectedProduct || kg <= 0) return [];
+        const baseCost = totalCost;
+        // ราคาแนะนำ: บวก 10%, 20%, 30%, 50%
+        return [
+            { label: '+10%', value: Math.ceil(baseCost * 1.1) },
+            { label: '+20%', value: Math.ceil(baseCost * 1.2) },
+            { label: '+30%', value: Math.ceil(baseCost * 1.3) },
+            { label: '+50%', value: Math.ceil(baseCost * 1.5) },
+        ];
+    };
+
+    const handleSelectProduct = (product: Product) => {
+        setSelectedProduct(product);
+        setStep('weight');
+    };
+
+    const handleConfirmWeight = () => {
+        if (kg <= 0) {
+            toast.warning('กรุณาใส่จำนวนกิโล');
+            return;
+        }
+        if (kg > currentStockInKg) {
+            toast.error('สต็อกไม่พอ!');
+            return;
+        }
+        setStep('price');
+    };
 
     const handleAddToCart = async () => {
         if (!selectedProduct || kg <= 0 || price <= 0) {
@@ -73,28 +120,18 @@ export default function SplitSellModal({ isOpen, onClose, products, onAddToCart 
             return;
         }
 
-        if (kg > currentStockInKg) {
-            toast.error('สต็อกไม่พอ');
-            return;
-        }
-
         // Add to cart with custom price
         const note = `แบ่งขาย ${kg} กก.`;
         onAddToCart(selectedProduct, 1, price, note);
 
-        // Update stock in database (deduct from parent)
-        // New stock = newBags, remainder = newRemainder
+        // Update stock in database
         const { error } = await supabase
             .from('inventory')
-            .update({
-                quantity: newBags,
-                // If you have a remainder field, update it here
-            })
+            .update({ quantity: newBags })
             .eq('branch_id', CURRENT_BRANCH_ID)
             .eq('product_id', selectedProduct.id);
 
         if (!error) {
-            // Record movement
             await supabase.from('inventory_movements').insert({
                 branch_id: CURRENT_BRANCH_ID,
                 product_id: selectedProduct.id,
@@ -110,137 +147,263 @@ export default function SplitSellModal({ isOpen, onClose, products, onAddToCart 
         onClose();
     };
 
+    // NumPad Component
+    const NumPad = ({ target }: { target: 'weight' | 'price' }) => (
+        <div className="grid grid-cols-3 gap-2">
+            {['7', '8', '9', '4', '5', '6', '1', '2', '3', '.', '0', '⌫'].map(num => (
+                <button
+                    key={num}
+                    onClick={() => handleNumPad(num, target)}
+                    className={`py-4 text-3xl font-bold rounded-xl transition-all active:scale-95 ${num === '⌫'
+                        ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                        }`}
+                >
+                    {num}
+                </button>
+            ))}
+        </div>
+    );
+
     return (
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title="🍚 ขายปุ๋ยแบ่งกิโล"
-            size="lg"
+            title={
+                step === 'select' ? '🍚 เลือกสินค้าที่จะแบ่ง' :
+                    step === 'weight' ? '⚖️ ใส่น้ำหนัก (กก.)' :
+                        '💰 ใส่ราคาขาย'
+            }
+            size="xl"
             headerColor="bg-orange-500"
             footer={
-                <>
+                step === 'select' ? (
                     <button
                         onClick={onClose}
-                        className="px-6 py-3 rounded-xl text-lg font-bold text-gray-600 hover:bg-gray-200"
+                        className="px-8 py-4 rounded-xl text-xl font-bold text-gray-600 hover:bg-gray-200"
                     >
-                        ยกเลิก
+                        ปิด
                     </button>
-                    <button
-                        onClick={handleAddToCart}
-                        disabled={!selectedProduct || kg <= 0 || price <= 0 || kg > currentStockInKg}
-                        className="px-8 py-3 rounded-xl text-lg font-bold text-white bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 flex items-center gap-2"
-                    >
-                        <Scissors size={20} /> เพิ่มลงตะกร้า
-                    </button>
-                </>
+                ) : step === 'weight' ? (
+                    <div className="flex gap-3 w-full">
+                        <button
+                            onClick={() => setStep('select')}
+                            className="flex-1 py-4 rounded-xl text-xl font-bold text-gray-600 bg-gray-200 hover:bg-gray-300 flex items-center justify-center gap-2"
+                        >
+                            <ArrowLeft size={24} /> กลับ
+                        </button>
+                        <button
+                            onClick={handleConfirmWeight}
+                            disabled={kg <= 0 || kg > currentStockInKg}
+                            className="flex-1 py-4 rounded-xl text-xl font-bold text-white bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 flex items-center justify-center gap-2"
+                        >
+                            <Check size={24} /> ถัดไป
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex gap-3 w-full">
+                        <button
+                            onClick={() => setStep('weight')}
+                            className="flex-1 py-4 rounded-xl text-xl font-bold text-gray-600 bg-gray-200 hover:bg-gray-300 flex items-center justify-center gap-2"
+                        >
+                            <ArrowLeft size={24} /> กลับ
+                        </button>
+                        <button
+                            onClick={handleAddToCart}
+                            disabled={price <= 0}
+                            className="flex-1 py-4 rounded-xl text-xl font-bold text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 flex items-center justify-center gap-2"
+                        >
+                            <Check size={24} /> เพิ่มลงตะกร้า
+                        </button>
+                    </div>
+                )
             }
         >
-            <div className="space-y-5">
-                {/* Product Select */}
-                <div>
-                    <label className="block font-bold text-gray-700 mb-2">📦 เลือกสินค้า</label>
-                    <select
-                        value={selectedProductId}
-                        onChange={(e) => setSelectedProductId(e.target.value)}
-                        className="w-full border-2 border-gray-200 p-4 rounded-xl text-lg bg-white"
-                    >
-                        <option value="">-- เลือกสินค้าที่จะแบ่งขาย --</option>
-                        {splittableProducts.map(p => (
-                            <option key={p.id} value={p.id}>
-                                {p.name} {p.size && `(${p.size})`} - คงเหลือ {p.stock} กระสอบ
-                            </option>
-                        ))}
-                    </select>
-                </div>
-
-                {selectedProduct && (
-                    <>
-                        {/* Weight Per Bag */}
-                        <div>
-                            <label className="block font-bold text-gray-700 mb-2">⚖️ น้ำหนักต่อกระสอบ (กก.)</label>
-                            <input
-                                type="number"
-                                value={weightPerBag}
-                                onChange={(e) => setWeightPerBag(Number(e.target.value))}
-                                className="w-full border-2 border-gray-200 p-4 rounded-xl text-lg"
-                                placeholder="50"
-                            />
-                            <p className="text-sm text-gray-500 mt-1">
-                                ต้นทุน: {selectedProduct.cost.toLocaleString()} บาท/กระสอบ = <span className="font-bold text-blue-600">{costPerKg.toFixed(2)} บาท/กก.</span>
-                            </p>
+            {/* Step 1: Select Product - Visual Cards */}
+            {step === 'select' && (
+                <div className="space-y-4">
+                    {splittableProducts.length === 0 ? (
+                        <div className="text-center py-12 text-gray-400">
+                            <Package size={64} className="mx-auto mb-4 opacity-50" />
+                            <p className="text-xl">ไม่พบสินค้าที่แบ่งขายได้</p>
+                            <p className="text-base mt-2">สินค้าต้องมีขนาดเป็น "กก." หรือ "กระสอบ"</p>
                         </div>
-
-                        {/* Current Stock Info */}
-                        <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
-                            <p className="font-bold text-blue-700">
-                                📊 สต็อกปัจจุบัน: {selectedProduct.stock} กระสอบ
-                                {selectedProduct.remainder_kg ? ` + ${selectedProduct.remainder_kg} กก.` : ''}
-                                <span className="text-gray-500 ml-2">
-                                    (รวม {currentStockInKg.toLocaleString()} กก.)
-                                </span>
-                            </p>
-                        </div>
-
-                        {/* Weight to Sell */}
-                        <div>
-                            <label className="block font-bold text-gray-700 mb-2">🔢 จำนวนที่ขาย (กก.)</label>
-                            <input
-                                type="number"
-                                value={weightKg}
-                                onChange={(e) => setWeightKg(e.target.value)}
-                                className="w-full border-2 border-orange-300 p-4 rounded-xl text-2xl font-bold text-center bg-orange-50"
-                                placeholder="0"
-                            />
-                        </div>
-
-                        {/* Sell Price */}
-                        <div>
-                            <label className="block font-bold text-gray-700 mb-2">💰 ราคาขาย (บาท)</label>
-                            <input
-                                type="number"
-                                value={sellPrice}
-                                onChange={(e) => setSellPrice(e.target.value)}
-                                className="w-full border-2 border-green-300 p-4 rounded-xl text-2xl font-bold text-center bg-green-50"
-                                placeholder="0"
-                            />
-                        </div>
-
-                        {/* Calculations */}
-                        {kg > 0 && price > 0 && (
-                            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-4">
-                                <div className="grid grid-cols-2 gap-4 mb-4">
-                                    <div>
-                                        <p className="text-sm text-gray-500">ต้นทุน {kg} กก.</p>
-                                        <p className="text-xl font-bold text-gray-700">{totalCost.toFixed(2)} บาท</p>
+                    ) : (
+                        <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto">
+                            {splittableProducts.map(product => (
+                                <button
+                                    key={product.id}
+                                    onClick={() => handleSelectProduct(product)}
+                                    className="bg-white border-2 border-gray-200 rounded-2xl p-3 hover:border-orange-400 hover:shadow-lg transition-all active:scale-95 text-left"
+                                >
+                                    {/* Product Image */}
+                                    <div className="w-full aspect-square rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 mb-3 flex items-center justify-center overflow-hidden">
+                                        {product.image_url ? (
+                                            <img
+                                                src={product.image_url}
+                                                alt={product.name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <Package size={48} className="text-orange-300" />
+                                        )}
                                     </div>
-                                    <div>
-                                        <p className="text-sm text-gray-500">กำไร</p>
-                                        <p className={`text-2xl font-black ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                            {profit >= 0 ? '+' : ''}{profit.toFixed(2)} บาท
-                                        </p>
-                                        <p className="text-xs text-gray-400">({profitPercent.toFixed(1)}%)</p>
-                                    </div>
-                                </div>
 
-                                <div className="border-t border-green-200 pt-3">
-                                    <p className="text-sm text-gray-500">🔄 หลังขายจะเหลือ:</p>
-                                    <p className="text-lg font-bold text-orange-700">
-                                        {newBags} กระสอบ + {newRemainder.toFixed(1)} กก.
+                                    {/* Product Name */}
+                                    <h3 className="font-bold text-lg text-gray-800 line-clamp-2 mb-1">
+                                        {product.name}
+                                    </h3>
+
+                                    {/* Size & Stock */}
+                                    <p className="text-sm text-gray-500 mb-2">
+                                        {product.size || '-'}
                                     </p>
-                                </div>
-                            </div>
-                        )}
-                    </>
-                )}
 
-                {splittableProducts.length === 0 && (
-                    <div className="text-center py-8 text-gray-400">
-                        <Package size={48} className="mx-auto mb-4 opacity-50" />
-                        <p>ไม่พบสินค้าที่แบ่งขายได้</p>
-                        <p className="text-sm mt-2">สินค้าต้องมีขนาดเป็น "กก." หรือ "กระสอบ"</p>
+                                    <div className="flex justify-between items-center">
+                                        <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">
+                                            {product.stock} กระสอบ
+                                        </span>
+                                        <span className="text-orange-600 font-bold">
+                                            ฿{product.price?.toLocaleString()}
+                                        </span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Step 2: Enter Weight */}
+            {step === 'weight' && selectedProduct && (
+                <div className="space-y-4">
+                    {/* Selected Product Preview */}
+                    <div className="flex items-center gap-4 bg-orange-50 border-2 border-orange-200 rounded-2xl p-4">
+                        <div className="w-20 h-20 rounded-xl bg-white flex items-center justify-center overflow-hidden flex-shrink-0">
+                            {selectedProduct.image_url ? (
+                                <img
+                                    src={selectedProduct.image_url}
+                                    alt={selectedProduct.name}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <Package size={32} className="text-orange-300" />
+                            )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-xl text-gray-800 truncate">{selectedProduct.name}</h3>
+                            <p className="text-orange-600">
+                                สต็อก: <span className="font-bold">{currentStockInKg.toLocaleString()} กก.</span>
+                            </p>
+                            <p className="text-sm text-gray-500">ต้นทุน: ฿{costPerKg.toFixed(2)}/กก.</p>
+                        </div>
                     </div>
-                )}
-            </div>
+
+                    {/* Weight Display */}
+                    <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-2xl p-6 text-center">
+                        <div className="flex items-center justify-center gap-3 mb-2">
+                            <Scale size={32} className="text-blue-500" />
+                            <span className="text-6xl font-black text-blue-700">
+                                {weightKg || '0'}
+                            </span>
+                            <span className="text-3xl text-blue-400 font-bold">กก.</span>
+                        </div>
+                        {kg > currentStockInKg && (
+                            <p className="text-red-600 font-bold mt-2">⚠️ เกินสต็อกที่มี!</p>
+                        )}
+                    </div>
+
+                    {/* Quick Weight Buttons */}
+                    <div className="grid grid-cols-5 gap-2">
+                        {quickWeights.map(w => (
+                            <button
+                                key={w}
+                                onClick={() => setWeightKg(w.toString())}
+                                disabled={w > currentStockInKg}
+                                className={`py-3 rounded-xl text-xl font-bold transition-all active:scale-95 ${weightKg === w.toString()
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                                    }`}
+                            >
+                                {w}
+                            </button>
+                        ))}
+                        <button
+                            onClick={() => setWeightKg('')}
+                            className="py-3 rounded-xl text-xl font-bold bg-red-100 text-red-600 hover:bg-red-200 transition-all"
+                        >
+                            C
+                        </button>
+                    </div>
+
+                    {/* NumPad */}
+                    <NumPad target="weight" />
+                </div>
+            )}
+
+            {/* Step 3: Enter Price */}
+            {step === 'price' && selectedProduct && (
+                <div className="space-y-4">
+                    {/* Summary */}
+                    <div className="flex items-center gap-4 bg-orange-50 border-2 border-orange-200 rounded-2xl p-4">
+                        <div className="w-16 h-16 rounded-xl bg-white flex items-center justify-center overflow-hidden flex-shrink-0">
+                            {selectedProduct.image_url ? (
+                                <img
+                                    src={selectedProduct.image_url}
+                                    alt={selectedProduct.name}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <Package size={24} className="text-orange-300" />
+                            )}
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="font-bold text-lg text-gray-800">{selectedProduct.name}</h3>
+                            <p className="text-orange-600 font-bold text-xl">แบ่ง {kg} กก.</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-sm text-gray-500">ต้นทุน</p>
+                            <p className="text-xl font-bold text-gray-700">฿{totalCost.toFixed(0)}</p>
+                        </div>
+                    </div>
+
+                    {/* Price Display */}
+                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl p-6 text-center">
+                        <div className="flex items-center justify-center gap-3 mb-2">
+                            <Banknote size={32} className="text-green-500" />
+                            <span className="text-6xl font-black text-green-700">
+                                {sellPrice || '0'}
+                            </span>
+                            <span className="text-3xl text-green-400 font-bold">บาท</span>
+                        </div>
+                        {price > 0 && (
+                            <p className={`font-bold mt-2 text-xl ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                กำไร: {profit >= 0 ? '+' : ''}{profit.toFixed(0)} บาท
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Quick Price Buttons */}
+                    <div className="grid grid-cols-4 gap-2">
+                        {getQuickPrices().map(qp => (
+                            <button
+                                key={qp.label}
+                                onClick={() => setSellPrice(qp.value.toString())}
+                                className={`py-3 rounded-xl text-lg font-bold transition-all active:scale-95 ${sellPrice === qp.value.toString()
+                                    ? 'bg-green-600 text-white'
+                                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                    }`}
+                            >
+                                <div>{qp.label}</div>
+                                <div className="text-sm">฿{qp.value}</div>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* NumPad */}
+                    <NumPad target="price" />
+                </div>
+            )}
         </Modal>
     );
 }

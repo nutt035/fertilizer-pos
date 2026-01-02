@@ -21,7 +21,7 @@ const PORT = 9100;
 
 // ⚠️ แก้ไขชื่อนี้ให้ตรงกับชื่อเครื่องปริ้นใน Windows
 // ดูจาก Settings > Printers & scanners > คลิกที่ Printer > Printer properties > Sharing tab > Share name
-const PRINTER_NAME = 'POS-80';
+const PRINTER_NAME = 'XP-80C';
 
 // Enable CORS for web app
 app.use(cors());
