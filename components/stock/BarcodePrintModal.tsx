@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Printer, X, Check, Search } from 'lucide-react';
+import { Printer, X, Check, Search, Download, FileSpreadsheet } from 'lucide-react';
 import Barcode from 'react-barcode';
 
 interface BarcodeProduct {
@@ -25,6 +25,7 @@ export default function BarcodePrintModal({
 }: BarcodePrintModalProps) {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [searchTerm, setSearchTerm] = useState('');
+    const [quantities, setQuantities] = useState<Record<string, number>>({});
     const printRef = useRef<HTMLDivElement>(null);
 
     // Filter products that have barcode
@@ -41,6 +42,7 @@ export default function BarcodePrintModal({
         if (isOpen) {
             setSelectedIds(new Set());
             setSearchTerm('');
+            setQuantities({});
             // Lock body scroll when modal is open
             document.body.style.overflow = 'hidden';
         } else {
@@ -56,19 +58,78 @@ export default function BarcodePrintModal({
             const next = new Set(prev);
             if (next.has(id)) {
                 next.delete(id);
+                // Remove qty when deselected
+                setQuantities(prev => {
+                    const newQty = { ...prev };
+                    delete newQty[id];
+                    return newQty;
+                });
             } else {
                 next.add(id);
+                // Set default qty to 1
+                setQuantities(prev => ({ ...prev, [id]: 1 }));
             }
             return next;
         });
     };
 
     const selectAll = () => {
-        setSelectedIds(new Set(filteredProducts.map(p => p.id)));
+        const newIds = new Set(filteredProducts.map(p => p.id));
+        setSelectedIds(newIds);
+        // Set qty 1 for all
+        const newQty: Record<string, number> = {};
+        filteredProducts.forEach(p => newQty[p.id] = 1);
+        setQuantities(newQty);
     };
 
     const deselectAll = () => {
         setSelectedIds(new Set());
+        setQuantities({});
+    };
+
+    const updateQuantity = (id: string, qty: number) => {
+        if (qty < 1) qty = 1;
+        if (qty > 999) qty = 999;
+        setQuantities(prev => ({ ...prev, [id]: qty }));
+    };
+
+    // ✅ Export CSV for OpenLabel+
+    const handleExportCSV = () => {
+        const selectedProducts = productsWithBarcode.filter(p => selectedIds.has(p.id));
+        if (selectedProducts.length === 0) return;
+
+        // CSV Header - columns for OpenLabel+
+        const headers = ['ProductName', 'Size', 'Price', 'Barcode', 'Qty'];
+
+        // CSV Rows - repeat each product by its quantity
+        const rows: string[][] = [];
+        selectedProducts.forEach(product => {
+            const qty = quantities[product.id] || 1;
+            for (let i = 0; i < qty; i++) {
+                rows.push([
+                    `"${product.name.replace(/"/g, '""')}"`, // Escape quotes
+                    `"${(product.size || '').replace(/"/g, '""')}"`,
+                    product.price.toString(),
+                    product.barcode,
+                    '1' // Each row = 1 label
+                ]);
+            }
+        });
+
+        // Create CSV content with BOM for Excel/Thai support
+        const BOM = '\uFEFF';
+        const csvContent = BOM + headers.join(',') + '\n' + rows.map(row => row.join(',')).join('\n');
+
+        // Download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `barcode_openlabel_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     };
 
     const handlePrint = () => {
@@ -188,6 +249,7 @@ export default function BarcodePrintModal({
     };
 
     const selectedProducts = productsWithBarcode.filter(p => selectedIds.has(p.id));
+    const totalLabels = selectedProducts.reduce((sum, p) => sum + (quantities[p.id] || 1), 0);
 
     if (!isOpen) return null;
 
@@ -213,8 +275,8 @@ export default function BarcodePrintModal({
 
                 {/* Search & Actions */}
                 <div className="p-4 bg-gray-50 border-b shrink-0">
-                    <div className="flex items-center gap-4">
-                        <div className="flex-1 relative">
+                    <div className="flex items-center gap-4 flex-wrap">
+                        <div className="flex-1 relative min-w-[200px]">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                             <input
                                 type="text"
@@ -251,21 +313,22 @@ export default function BarcodePrintModal({
                             {filteredProducts.map(product => (
                                 <div
                                     key={product.id}
-                                    onClick={() => toggleSelect(product.id)}
-                                    className={`p-4 rounded-xl border-2 cursor-pointer transition ${selectedIds.has(product.id)
+                                    className={`p-4 rounded-xl border-2 transition ${selectedIds.has(product.id)
                                         ? 'border-indigo-500 bg-indigo-50'
                                         : 'border-gray-200 hover:border-indigo-300 bg-white'
                                         }`}
                                 >
                                     <div className="flex items-start gap-3">
-                                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${selectedIds.has(product.id)
-                                            ? 'bg-indigo-500 border-indigo-500 text-white'
-                                            : 'border-gray-300'
-                                            }`}>
+                                        <div
+                                            onClick={() => toggleSelect(product.id)}
+                                            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 cursor-pointer ${selectedIds.has(product.id)
+                                                ? 'bg-indigo-500 border-indigo-500 text-white'
+                                                : 'border-gray-300 hover:border-indigo-400'
+                                                }`}>
                                             {selectedIds.has(product.id) && <Check size={14} />}
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="font-bold text-gray-800 truncate">
+                                        <div className="flex-1 min-w-0" onClick={() => toggleSelect(product.id)}>
+                                            <div className="font-bold text-gray-800 truncate cursor-pointer">
                                                 {product.name}
                                                 {product.size && (
                                                     <span className="ml-1 text-purple-600 font-normal">({product.size})</span>
@@ -282,6 +345,34 @@ export default function BarcodePrintModal({
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* Quantity Input - Show when selected */}
+                                    {selectedIds.has(product.id) && (
+                                        <div className="mt-3 flex items-center justify-center gap-2 bg-indigo-100 rounded-lg p-2">
+                                            <span className="text-sm font-medium text-indigo-700">จำนวน:</span>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, (quantities[product.id] || 1) - 1); }}
+                                                className="w-8 h-8 bg-white rounded-lg font-bold text-indigo-600 hover:bg-indigo-200 border border-indigo-300"
+                                            >
+                                                -
+                                            </button>
+                                            <input
+                                                type="number"
+                                                value={quantities[product.id] || 1}
+                                                onChange={(e) => updateQuantity(product.id, parseInt(e.target.value) || 1)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="w-16 text-center py-1 rounded-lg border border-indigo-300 font-bold text-indigo-700"
+                                                min={1}
+                                                max={999}
+                                            />
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, (quantities[product.id] || 1) + 1); }}
+                                                className="w-8 h-8 bg-white rounded-lg font-bold text-indigo-600 hover:bg-indigo-200 border border-indigo-300"
+                                            >
+                                                +
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -290,50 +381,83 @@ export default function BarcodePrintModal({
 
                 {/* Footer */}
                 <div className="p-4 bg-gray-50 border-t shrink-0">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-3">
                         <div className="text-gray-500">
                             เลือกแล้ว <span className="font-bold text-indigo-600">{selectedIds.size}</span> รายการ
+                            {selectedIds.size > 0 && (
+                                <span className="ml-2 text-indigo-600 font-bold">
+                                    ({totalLabels} ป้าย)
+                                </span>
+                            )}
                             <span className="text-gray-400 ml-2">
                                 (มีบาร์โค้ดทั้งหมด {productsWithBarcode.length} รายการ)
                             </span>
                         </div>
-                        <button
-                            onClick={handlePrint}
-                            disabled={selectedIds.size === 0}
-                            className="bg-indigo-600 text-white px-8 py-3 rounded-lg font-bold text-lg hover:bg-indigo-700 flex items-center gap-2 disabled:bg-gray-400"
-                        >
-                            <Printer size={24} /> ปริ้น ({selectedIds.size})
-                        </button>
+                        <div className="flex gap-3">
+                            {/* Export CSV Button */}
+                            <button
+                                onClick={handleExportCSV}
+                                disabled={selectedIds.size === 0}
+                                className="bg-green-600 text-white px-6 py-3 rounded-lg font-bold text-lg hover:bg-green-700 flex items-center gap-2 disabled:bg-gray-400"
+                                title="Export CSV สำหรับ OpenLabel+"
+                            >
+                                <FileSpreadsheet size={20} />
+                                <span className="hidden md:inline">Export CSV</span>
+                                <span className="md:hidden">CSV</span>
+                            </button>
+
+                            {/* Print Button */}
+                            <button
+                                onClick={handlePrint}
+                                disabled={selectedIds.size === 0}
+                                className="bg-indigo-600 text-white px-8 py-3 rounded-lg font-bold text-lg hover:bg-indigo-700 flex items-center gap-2 disabled:bg-gray-400"
+                            >
+                                <Printer size={24} /> ปริ้น ({totalLabels})
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
 
             {/* Hidden Print Content - 32mm x 25mm GAP Label (3 columns) */}
             <div ref={printRef} className="hidden">
-                {/* Group labels into rows of 3 */}
-                {Array.from({ length: Math.ceil(selectedProducts.length / 3) }, (_, rowIndex) => (
-                    <div key={rowIndex} className="label-row">
-                        {selectedProducts.slice(rowIndex * 3, rowIndex * 3 + 3).map((product) => (
-                            <div key={product.id} className="label">
-                                <div className="label-name">
-                                    {product.name}{product.size ? ` (${product.size})` : ''}
+                {/* Generate labels with quantities */}
+                {(() => {
+                    // Expand products by their quantities
+                    const allLabels: BarcodeProduct[] = [];
+                    selectedProducts.forEach(product => {
+                        const qty = quantities[product.id] || 1;
+                        for (let i = 0; i < qty; i++) {
+                            allLabels.push(product);
+                        }
+                    });
+
+                    // Group into rows of 3
+                    return Array.from({ length: Math.ceil(allLabels.length / 3) }, (_, rowIndex) => (
+                        <div key={rowIndex} className="label-row">
+                            {allLabels.slice(rowIndex * 3, rowIndex * 3 + 3).map((product, idx) => (
+                                <div key={`${product.id}-${rowIndex}-${idx}`} className="label">
+                                    <div className="label-name">
+                                        {product.name}{product.size ? ` (${product.size})` : ''}
+                                    </div>
+                                    <div className="label-price">฿{product.price.toLocaleString()}</div>
+                                    <div className="label-barcode">
+                                        <Barcode
+                                            value={product.barcode}
+                                            width={1}
+                                            height={30}
+                                            fontSize={8}
+                                            margin={0}
+                                            displayValue={true}
+                                        />
+                                    </div>
                                 </div>
-                                <div className="label-price">฿{product.price.toLocaleString()}</div>
-                                <div className="label-barcode">
-                                    <Barcode
-                                        value={product.barcode}
-                                        width={1}
-                                        height={30}
-                                        fontSize={8}
-                                        margin={0}
-                                        displayValue={true}
-                                    />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ))}
+                            ))}
+                        </div>
+                    ));
+                })()}
             </div>
         </>
     );
 }
+
