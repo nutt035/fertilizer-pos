@@ -14,7 +14,7 @@ interface Product {
     size?: string;
     unit?: string;
     stock: number;
-    image_url?: string;
+    image_url?: string | null;
     remainder_kg?: number;
 }
 

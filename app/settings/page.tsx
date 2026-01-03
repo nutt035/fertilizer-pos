@@ -18,6 +18,9 @@ import {
     AlertTriangle,
     Pencil,
     X,
+    ChevronUp,
+    ChevronDown,
+    Check,
 } from 'lucide-react';
 
 type Notice = { type: 'success' | 'error' | 'warn'; message: string } | null;
@@ -88,6 +91,10 @@ export default function SettingsPage() {
 
     // State for drag-drop
     const [draggedId, setDraggedId] = useState<string | null>(null);
+
+    // State for editing category
+    const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+    const [editingCategoryName, setEditingCategoryName] = useState('');
 
     useEffect(() => {
         fetchAllBranches();
@@ -181,6 +188,70 @@ export default function SettingsPage() {
         }
 
         setDraggedId(null);
+        setNotice({ type: 'success', message: '✅ จัดลำดับเรียบร้อย' });
+    };
+
+    // Handle edit category name
+    const handleStartEditCategory = (id: string, currentName: string) => {
+        setEditingCategoryId(id);
+        setEditingCategoryName(currentName);
+    };
+
+    const handleSaveCategoryName = async () => {
+        if (!editingCategoryId || !editingCategoryName.trim()) {
+            setEditingCategoryId(null);
+            return;
+        }
+
+        // Optimistic update
+        setCategories(prev => prev.map(c =>
+            c.id === editingCategoryId ? { ...c, name: editingCategoryName.trim() } : c
+        ));
+
+        const { error } = await supabase
+            .from('master_categories')
+            .update({ name: editingCategoryName.trim() })
+            .eq('id', editingCategoryId);
+
+        if (error) {
+            setNotice({ type: 'error', message: `แก้ไขไม่สำเร็จ: ${error.message}` });
+            fetchMasterData(); // Reload on error
+        } else {
+            setNotice({ type: 'success', message: '✅ แก้ไขชื่อหมวดหมู่เรียบร้อย' });
+        }
+
+        setEditingCategoryId(null);
+    };
+
+    // Handle move category up/down
+    const handleMoveCategory = async (categoryId: string, direction: 'up' | 'down') => {
+        const parentCategories = categories.filter(c => !c.parent_id);
+        const currentIndex = parentCategories.findIndex(c => c.id === categoryId);
+
+        if (currentIndex === -1) return;
+        const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+        if (targetIndex < 0 || targetIndex >= parentCategories.length) return;
+
+        // Swap locally
+        const newParentCategories = [...parentCategories];
+        [newParentCategories[currentIndex], newParentCategories[targetIndex]] =
+            [newParentCategories[targetIndex], newParentCategories[currentIndex]];
+
+        // Keep child categories in place, update full list
+        const childCategories = categories.filter(c => c.parent_id);
+        const newCategories = [...newParentCategories, ...childCategories];
+        setCategories(newCategories);
+
+        // Update sort_order in database
+        const updates = newParentCategories.map((cat, index) => ({
+            id: cat.id,
+            sort_order: index + 1
+        }));
+
+        for (const update of updates) {
+            await supabase.from('master_categories').update({ sort_order: update.sort_order }).eq('id', update.id);
+        }
+
         setNotice({ type: 'success', message: '✅ จัดลำดับเรียบร้อย' });
     };
 
@@ -695,34 +766,95 @@ export default function SettingsPage() {
                         {activeTab === 'CATEGORY' && (
                             <div className="space-y-1 max-h-[500px] overflow-y-auto">
                                 {/* Parent categories */}
-                                {categories.filter(c => !c.parent_id).map((parent) => (
+                                {categories.filter(c => !c.parent_id).map((parent, idx, arr) => (
                                     <div key={parent.id}>
                                         {/* Parent item */}
                                         <div
-                                            draggable
+                                            draggable={editingCategoryId !== parent.id}
                                             onDragStart={() => handleDragStart(parent.id)}
                                             onDragOver={handleDragOver}
                                             onDrop={() => handleDrop(parent.id)}
-                                            className={`flex justify-between items-center p-3 rounded-lg border transition cursor-move ${draggedId === parent.id
+                                            className={`flex justify-between items-center p-3 rounded-lg border transition ${editingCategoryId !== parent.id ? 'cursor-move' : ''} ${draggedId === parent.id
                                                 ? 'bg-blue-100 border-blue-300 opacity-50'
                                                 : 'bg-white hover:bg-gray-50 hover:shadow-sm'
                                                 }`}
                                         >
-                                            <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-3 flex-1 min-w-0">
                                                 <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                                <span className="font-bold text-gray-700">{parent.name}</span>
-                                                {categories.filter(c => c.parent_id === parent.id).length > 0 && (
-                                                    <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
-                                                        {categories.filter(c => c.parent_id === parent.id).length} ย่อย
-                                                    </span>
+                                                {editingCategoryId === parent.id ? (
+                                                    <div className="flex items-center gap-2 flex-1">
+                                                        <input
+                                                            type="text"
+                                                            value={editingCategoryName}
+                                                            onChange={(e) => setEditingCategoryName(e.target.value)}
+                                                            className="flex-1 border-2 border-blue-400 rounded-lg px-3 py-1 font-bold text-gray-700 focus:outline-none"
+                                                            autoFocus
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') handleSaveCategoryName();
+                                                                if (e.key === 'Escape') setEditingCategoryId(null);
+                                                            }}
+                                                        />
+                                                        <button
+                                                            onClick={handleSaveCategoryName}
+                                                            className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200"
+                                                        >
+                                                            <Check size={16} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setEditingCategoryId(null)}
+                                                            className="p-2 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200"
+                                                        >
+                                                            <X size={16} />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <span className="font-bold text-gray-700 truncate">{parent.name}</span>
+                                                        {categories.filter(c => c.parent_id === parent.id).length > 0 && (
+                                                            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
+                                                                {categories.filter(c => c.parent_id === parent.id).length} ย่อย
+                                                            </span>
+                                                        )}
+                                                    </>
                                                 )}
                                             </div>
-                                            <button
-                                                onClick={() => handleDeleteItem('CATEGORY', parent.id)}
-                                                className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg"
-                                            >
-                                                <Trash2 size={18} />
-                                            </button>
+                                            {editingCategoryId !== parent.id && (
+                                                <div className="flex items-center gap-1">
+                                                    {/* Move up/down buttons */}
+                                                    <button
+                                                        onClick={() => handleMoveCategory(parent.id, 'up')}
+                                                        disabled={idx === 0}
+                                                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
+                                                        title="เลื่อนขึ้น"
+                                                    >
+                                                        <ChevronUp size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleMoveCategory(parent.id, 'down')}
+                                                        disabled={idx === arr.length - 1}
+                                                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
+                                                        title="เลื่อนลง"
+                                                    >
+                                                        <ChevronDown size={16} />
+                                                    </button>
+                                                    {/* Edit button */}
+                                                    <button
+                                                        onClick={() => handleStartEditCategory(parent.id, parent.name)}
+                                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                                        title="แก้ไขชื่อ"
+                                                    >
+                                                        <Pencil size={16} />
+                                                    </button>
+                                                    {/* Delete button */}
+                                                    <button
+                                                        onClick={() => handleDeleteItem('CATEGORY', parent.id)}
+                                                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                                        title="ลบ"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Child categories */}
@@ -731,16 +863,56 @@ export default function SettingsPage() {
                                                 key={child.id}
                                                 className="flex justify-between items-center p-3 ml-6 bg-gray-50 rounded-lg border-l-4 border-blue-200 mt-1"
                                             >
-                                                <div className="flex items-center gap-3">
+                                                <div className="flex items-center gap-3 flex-1 min-w-0">
                                                     <span className="text-gray-300">└</span>
-                                                    <span className="text-gray-600">{child.name}</span>
+                                                    {editingCategoryId === child.id ? (
+                                                        <div className="flex items-center gap-2 flex-1">
+                                                            <input
+                                                                type="text"
+                                                                value={editingCategoryName}
+                                                                onChange={(e) => setEditingCategoryName(e.target.value)}
+                                                                className="flex-1 border-2 border-blue-400 rounded-lg px-3 py-1 text-gray-600 focus:outline-none"
+                                                                autoFocus
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') handleSaveCategoryName();
+                                                                    if (e.key === 'Escape') setEditingCategoryId(null);
+                                                                }}
+                                                            />
+                                                            <button
+                                                                onClick={handleSaveCategoryName}
+                                                                className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200"
+                                                            >
+                                                                <Check size={16} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setEditingCategoryId(null)}
+                                                                className="p-2 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200"
+                                                            >
+                                                                <X size={16} />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-gray-600 truncate">{child.name}</span>
+                                                    )}
                                                 </div>
-                                                <button
-                                                    onClick={() => handleDeleteItem('CATEGORY', child.id)}
-                                                    className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
+                                                {editingCategoryId !== child.id && (
+                                                    <div className="flex items-center gap-1">
+                                                        <button
+                                                            onClick={() => handleStartEditCategory(child.id, child.name)}
+                                                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                                            title="แก้ไขชื่อ"
+                                                        >
+                                                            <Pencil size={16} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteItem('CATEGORY', child.id)}
+                                                            className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                                            title="ลบ"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
