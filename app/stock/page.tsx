@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { supabase, CURRENT_BRANCH_ID } from '../../lib/supabase';
-import { Plus, Package, Edit, ArrowLeft, Trash2, Image as ImageIcon, Barcode, Scissors, Settings, Layers, ArrowUpDown, DollarSign, Copy, Printer, Upload } from 'lucide-react';
+import { Plus, Package, Edit, ArrowLeft, Trash2, Image as ImageIcon, Barcode, Scissors, Settings, Layers, ArrowUpDown, DollarSign, Copy, Printer, Upload, RefreshCw } from 'lucide-react';
 import { useToast } from '../../components/common/Toast';
+import { useRealtimeStock } from '../../hooks/useRealtimeStock';
 
 // Components
 import { SearchInput } from '../../components/common';
@@ -88,6 +89,27 @@ export default function StockPage() {
 
     // Form State
     const [selectedProduct, setSelectedProduct] = useState<StockProduct | null>(null);
+
+    // ✅ Real-time sync state
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+
+    // ✅ Real-time sync handler - เมื่อมีการแก้ไขจากเครื่องอื่น
+    const handleRealtimeUpdate = useCallback(() => {
+        setIsSyncing(true);
+        fetchProductsKeepScroll().finally(() => {
+            setIsSyncing(false);
+            setLastSyncTime(new Date());
+        });
+    }, []);
+
+    // ✅ Subscribe to real-time changes
+    const { isConnected } = useRealtimeStock({
+        onProductChange: handleRealtimeUpdate,
+        onInventoryChange: handleRealtimeUpdate,
+        onBarcodeChange: handleRealtimeUpdate,
+        debounceMs: 500,
+    });
 
     useEffect(() => {
         fetchMasterData();
@@ -677,6 +699,26 @@ export default function StockPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
+                    {/* Real-time Sync Indicator */}
+                    {isSyncing ? (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm font-bold animate-pulse">
+                            <RefreshCw size={14} className="animate-spin" />
+                            กำลัง sync...
+                        </div>
+                    ) : isConnected ? (
+                        <div
+                            className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-sm font-medium cursor-help"
+                            title={lastSyncTime ? `อัปเดตล่าสุด: ${lastSyncTime.toLocaleTimeString('th-TH')}` : 'เชื่อมต่อ Real-time สำเร็จ'}
+                        >
+                            <RefreshCw size={14} />
+                            🟢 Real-time
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-500 rounded-lg text-sm font-medium">
+                            <RefreshCw size={14} />
+                            กำลังเชื่อมต่อ...
+                        </div>
+                    )}
                     {loading && <div className="text-blue-600 font-bold animate-pulse text-sm">กำลังโหลด...</div>}
                     <div className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold">
                         📦 สินค้าทั้งหมด <span className="text-blue-600">{products.length}</span> รายการ
