@@ -23,6 +23,7 @@ interface ProductFormData {
     price: number;
     cost: number;
     stock: number;
+    min_stock_level: number;  // สต็อกขั้นต่ำที่แจ้งเตือน
     barcode: string;
     category_id: string;
     subcategory_id: string;
@@ -62,6 +63,7 @@ export default function ProductModal({
         price: 0,
         cost: 0,
         stock: 0,
+        min_stock_level: 5,  // ค่าเริ่มต้น
         barcode: '',
         category_id: '',
         subcategory_id: '',
@@ -94,6 +96,7 @@ export default function ProductModal({
                 price: product.price || 0,
                 cost: product.cost || 0,
                 stock: product.stock || 0,
+                min_stock_level: product.min_stock_level ?? 5,
                 barcode: firstBarcode,
                 category_id: product.category_id || '',
                 subcategory_id: product.subcategory_id || '',
@@ -112,6 +115,7 @@ export default function ProductModal({
                 price: 0,
                 cost: 0,
                 stock: 0,
+                min_stock_level: 5,
                 barcode: (defaultBarcode || '').toString(),
                 category_id: categories[0]?.id || '',
                 subcategory_id: '',
@@ -322,7 +326,7 @@ export default function ProductModal({
                     </div>
 
                     {/* Price & Cost */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 border-t pt-4">
+                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 border-t pt-4">
                         <div>
                             <label className="block text-gray-700 mb-1">ราคาทุน</label>
                             <input
@@ -349,6 +353,18 @@ export default function ProductModal({
                                 onChange={(e) => setFormValue({ ...formValue, stock: Number(e.target.value) })}
                                 className="w-full border p-3 rounded text-lg bg-blue-50 font-bold"
                             />
+                        </div>
+                        <div>
+                            <label className="block text-gray-700 mb-1 font-bold text-red-600">⚠️ แจ้งเตือนเมื่อ</label>
+                            <input
+                                type="number"
+                                value={formValue.min_stock_level}
+                                onChange={(e) => setFormValue({ ...formValue, min_stock_level: Number(e.target.value) })}
+                                className="w-full border-2 border-red-200 p-3 rounded text-lg bg-red-50"
+                                min="0"
+                                placeholder="5"
+                            />
+                            <div className="text-xs text-gray-400 mt-1">สต็อกเหลือเท่านี้จะแจ้งเตือน</div>
                         </div>
                         <div>
                             <label className="block text-gray-700 mb-1 font-bold text-orange-600">📅 วันหมดอายุ</label>

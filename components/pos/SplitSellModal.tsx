@@ -124,10 +124,13 @@ export default function SplitSellModal({ isOpen, onClose, products, onAddToCart 
         const note = `แบ่งขาย ${kg} กก.`;
         onAddToCart(selectedProduct, 1, price, note);
 
-        // Update stock in database
+        // Update stock in database - รวมทั้ง remainder_kg ด้วย
         const { error } = await supabase
             .from('inventory')
-            .update({ quantity: newBags })
+            .update({
+                quantity: newBags,
+                remainder_kg: newRemainder  // บันทึกเศษที่เหลือ
+            })
             .eq('branch_id', CURRENT_BRANCH_ID)
             .eq('product_id', selectedProduct.id);
 
@@ -138,7 +141,7 @@ export default function SplitSellModal({ isOpen, onClose, products, onAddToCart 
                 type: 'SPLIT',
                 quantity: -kg,
                 balance_after: newBags,
-                reason: `แบ่งขาย ${kg} กก. ราคา ${price} บาท (เหลือเศษ ${newRemainder} กก.)`,
+                reason: `แบ่งขาย ${kg} กก. ราคา ${price} บาท (เหลือ ${newBags} ถุง + เศษ ${newRemainder} กก.)`,
                 ref_type: 'SPLIT_SALE'
             });
         }

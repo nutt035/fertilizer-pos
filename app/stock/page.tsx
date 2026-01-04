@@ -266,7 +266,7 @@ export default function StockPage() {
         master_categories (name),
         master_subcategories (id, name),
         master_units (name),
-        inventory (quantity),
+        inventory (quantity, remainder_kg),
         product_barcodes (barcode, is_custom)
       `)
             .eq('is_active', true)
@@ -282,6 +282,7 @@ export default function StockPage() {
                 return {
                     ...p,
                     stock: p.inventory?.[0]?.quantity || 0,
+                    remainder_kg: p.inventory?.[0]?.remainder_kg || 0,  // เศษที่เหลือจากการแบ่ง
                     category: p.master_categories?.name || '-',
                     subcategory: p.master_subcategories?.name || '',
                     unit: p.master_units?.name || '-',
@@ -383,6 +384,7 @@ export default function StockPage() {
             description: formData.description,
             price: Number(formData.price),
             cost: Number(formData.cost),
+            min_stock_level: Number(formData.min_stock_level) || 5,  // สต็อกขั้นต่ำที่แจ้งเตือน
             category_id: formData.category_id,
             subcategory_id: formData.subcategory_id || null,
             unit_id: formData.unit_id,
@@ -977,6 +979,12 @@ export default function StockPage() {
                                     {product.stock}
                                 </div>
                                 <div className="text-xs text-gray-400">{product.unit}</div>
+                                {/* แสดงเศษที่เหลือจากการแบ่ง */}
+                                {(product as any).remainder_kg > 0 && (
+                                    <div className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full mt-1 font-bold">
+                                        +เศษ {(product as any).remainder_kg} กก.
+                                    </div>
+                                )}
                             </div>
                         </div>
                         <div className="flex justify-between items-center mt-3 pt-3 border-t">
@@ -1099,6 +1107,12 @@ export default function StockPage() {
                                             {product.stock}
                                         </div>
                                         <div className="text-sm text-gray-400">{product.unit}</div>
+                                        {/* แสดงเศษที่เหลือจากการแบ่ง */}
+                                        {(product as any).remainder_kg > 0 && (
+                                            <div className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full mt-1 font-bold inline-block">
+                                                +เศษ {(product as any).remainder_kg} กก.
+                                            </div>
+                                        )}
                                     </td>
 
                                     <td className="p-4">

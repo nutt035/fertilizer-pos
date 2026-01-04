@@ -161,7 +161,7 @@ export default function POSPage() {
                 master_subcategories (id, name),
                 master_units (name),
                 product_barcodes (barcode),
-                inventory (quantity)
+                inventory (quantity, remainder_kg)
             `)
       .eq('is_active', true)
       .eq('inventory.branch_id', CURRENT_BRANCH_ID);
@@ -187,6 +187,7 @@ export default function POSPage() {
         subcategory: p.master_subcategories?.name || '',
         unit: p.master_units?.name || 'ชิ้น',
         stock: p.inventory?.[0]?.quantity || 0,
+        remainder_kg: p.inventory?.[0]?.remainder_kg || 0,  // เศษที่เหลือจากการแบ่ง
         barcode: p.product_barcodes?.[0]?.barcode || '',
         product_barcodes: p.product_barcodes
       }));
