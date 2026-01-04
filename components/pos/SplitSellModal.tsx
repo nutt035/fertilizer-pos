@@ -13,6 +13,7 @@ interface Product {
     price: number;
     size?: string;
     unit?: string;
+    category?: string;  // หมวดหมู่
     stock: number;
     image_url?: string | null;
     remainder_kg?: number;
@@ -31,12 +32,17 @@ export default function SplitSellModal({ isOpen, onClose, products, onAddToCart 
     const [weightKg, setWeightKg] = useState('');
     const [sellPrice, setSellPrice] = useState('');
     const [weightPerBag, setWeightPerBag] = useState(50);
+    const [searchTerm, setSearchTerm] = useState('');  // ค้นหาสินค้า
     const toast = useToast();
 
-    // Filter only products with "กก" or "กระสอบ" in size/unit
+    // แสดงเฉพาะสินค้าในหมวดหมู่ "ปุ๋ยกระสอบ"
     const splittableProducts = products.filter(p =>
-        (p.size && (p.size.includes('กก') || p.size.includes('กระสอบ') || p.size.includes('ก.ก'))) ||
-        (p.unit && (p.unit.includes('กก') || p.unit.includes('กระสอบ') || p.unit.includes('ก.ก')))
+        p.category && p.category.toLowerCase().includes('ปุ๋ยกระสอบ')
+    );
+
+    // กรองตามชื่อสินค้า
+    const filteredProducts = splittableProducts.filter(p =>
+        searchTerm === '' || p.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     // Calculations
@@ -60,6 +66,7 @@ export default function SplitSellModal({ isOpen, onClose, products, onAddToCart 
             setSelectedProduct(null);
             setWeightKg('');
             setSellPrice('');
+            setSearchTerm('');  // ล้างค่าค้นหา
         }
     }, [isOpen]);
 
@@ -225,15 +232,37 @@ export default function SplitSellModal({ isOpen, onClose, products, onAddToCart 
             {/* Step 1: Select Product - Visual Cards */}
             {step === 'select' && (
                 <div className="space-y-4">
-                    {splittableProducts.length === 0 ? (
+                    {/* ช่องค้นหา */}
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="🔍 ค้นหาชื่อสินค้า..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full border-2 border-gray-200 p-4 rounded-xl text-xl focus:border-orange-400 focus:outline-none"
+                            autoFocus
+                        />
+                        {searchTerm && (
+                            <button
+                                onClick={() => setSearchTerm('')}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                                <X size={24} />
+                            </button>
+                        )}
+                    </div>
+
+                    {filteredProducts.length === 0 ? (
                         <div className="text-center py-12 text-gray-400">
                             <Package size={64} className="mx-auto mb-4 opacity-50" />
-                            <p className="text-xl">ไม่พบสินค้าที่แบ่งขายได้</p>
+                            <p className="text-xl">
+                                {searchTerm ? `ไม่พบ "${searchTerm}"` : 'ไม่พบสินค้าที่แบ่งขายได้'}
+                            </p>
                             <p className="text-base mt-2">สินค้าต้องมีขนาดเป็น "กก." หรือ "กระสอบ"</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto">
-                            {splittableProducts.map(product => (
+                        <div className="grid grid-cols-2 gap-3 max-h-[50vh] overflow-y-auto">
+                            {filteredProducts.map(product => (
                                 <button
                                     key={product.id}
                                     onClick={() => handleSelectProduct(product)}

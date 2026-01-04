@@ -22,6 +22,7 @@
 
 #print-server
 /print-server/
+/migrations/
 
 # misc
 .DS_Store
