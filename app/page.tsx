@@ -209,7 +209,7 @@ export default function POSPage() {
   };
 
   const fetchSubcategories = async () => {
-    const { data, error } = await supabase.from('master_subcategories').select('*').order('name');
+    const { data, error } = await supabase.from('master_subcategories').select('*').order('sort_order');
     if (error) console.error('Error subcategories:', error);
     else setSubcategories(data || []);
   };

@@ -96,6 +96,10 @@ export default function SettingsPage() {
     const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
     const [editingCategoryName, setEditingCategoryName] = useState('');
 
+    // State for editing subcategory
+    const [editingSubcategoryId, setEditingSubcategoryId] = useState<string | null>(null);
+    const [editingSubcategoryName, setEditingSubcategoryName] = useState('');
+
     useEffect(() => {
         fetchAllBranches();
         fetchBranchInfo(CURRENT_BRANCH_ID);
@@ -140,7 +144,7 @@ export default function SettingsPage() {
     const fetchMasterData = async () => {
         // เรียงหมวดหมู่ตาม sort_order
         const { data: cats } = await supabase.from('master_categories').select('*').order('sort_order');
-        const { data: subs } = await supabase.from('master_subcategories').select('*').order('name');
+        const { data: subs } = await supabase.from('master_subcategories').select('*').order('sort_order');
         const { data: uns } = await supabase.from('master_units').select('*').order('name');
         setCategories(cats || []);
         setSubcategories(subs || []);
@@ -367,12 +371,18 @@ export default function SettingsPage() {
 
     const handleDeleteItem = async (type: 'CATEGORY' | 'UNIT', id: string) => {
         setNotice(null);
-        if (!confirm('ต้องการลบรายการนี้? (ถ้ามีสินค้าใช้อยู่อาจมีปัญหาแสดงผล)')) return;
         const table = type === 'CATEGORY' ? 'master_categories' : 'master_units';
+        const items = type === 'CATEGORY' ? categories : units;
+        const item = items.find(i => i.id === id);
+        const itemName = item?.name || 'รายการนี้';
+        const typeLabel = type === 'CATEGORY' ? 'หมวดหมู่' : 'หน่วยนับ';
+
+        if (!confirm(`⚠️ ยืนยันลบ${typeLabel} "${itemName}" ?\n\nถ้ามีสินค้าใช้อยู่อาจมีปัญหาแสดงผล`)) return;
+
         const { error } = await supabase.from(table).delete().eq('id', id);
         if (error) setNotice({ type: 'error', message: `ลบไม่สำเร็จ: ${error.message}` });
         else {
-            setNotice({ type: 'success', message: '🗑️ ลบรายการเรียบร้อย' });
+            setNotice({ type: 'success', message: `🗑️ ลบ${typeLabel} "${itemName}" เรียบร้อย` });
             fetchMasterData();
         }
     };
@@ -383,9 +393,14 @@ export default function SettingsPage() {
         if (!newItemName.trim()) return setNotice({ type: 'warn', message: 'กรุณากรอกชื่อหมวดหมู่ย่อย' });
         if (!newSubcategoryParent) return setNotice({ type: 'warn', message: 'กรุณาเลือกหมวดหมู่หลัก' });
 
+        // หา sort_order สูงสุดในหมวดหมู่หลักนั้น
+        const subsInCategory = subcategories.filter(s => s.category_id === newSubcategoryParent);
+        const maxSortOrder = Math.max(...subsInCategory.map(s => s.sort_order || 0), 0);
+
         const { error } = await supabase.from('master_subcategories').insert({
             name: newItemName.trim(),
-            category_id: newSubcategoryParent
+            category_id: newSubcategoryParent,
+            sort_order: maxSortOrder + 1
         });
 
         if (error) {
@@ -399,13 +414,78 @@ export default function SettingsPage() {
 
     const handleDeleteSubcategory = async (id: string) => {
         setNotice(null);
-        if (!confirm('ต้องการลบหมวดหมู่ย่อยนี้?')) return;
+        const sub = subcategories.find(s => s.id === id);
+        const subName = sub?.name || 'หมวดหมู่ย่อยนี้';
+
+        if (!confirm(`⚠️ ยืนยันลบหมวดหมู่ย่อย "${subName}" ?\n\nสินค้าที่ใช้หมวดหมู่ย่อยนี้จะยังอยู่ แต่จะไม่มีหมวดหมู่ย่อย`)) return;
+
         const { error } = await supabase.from('master_subcategories').delete().eq('id', id);
         if (error) setNotice({ type: 'error', message: `ลบไม่สำเร็จ: ${error.message}` });
         else {
-            setNotice({ type: 'success', message: '🗑️ ลบหมวดหมู่ย่อยเรียบร้อย' });
+            setNotice({ type: 'success', message: `🗑️ ลบหมวดหมู่ย่อย "${subName}" เรียบร้อย` });
             fetchMasterData();
         }
+    };
+
+    // แก้ไขชื่อหมวดหมู่ย่อย
+    const handleStartEditSubcategory = (id: string, currentName: string) => {
+        setEditingSubcategoryId(id);
+        setEditingSubcategoryName(currentName);
+    };
+
+    const handleSaveSubcategoryName = async () => {
+        if (!editingSubcategoryId || !editingSubcategoryName.trim()) {
+            setEditingSubcategoryId(null);
+            return;
+        }
+
+        // Optimistic update
+        setSubcategories(prev => prev.map(s =>
+            s.id === editingSubcategoryId ? { ...s, name: editingSubcategoryName.trim() } : s
+        ));
+
+        const { error } = await supabase
+            .from('master_subcategories')
+            .update({ name: editingSubcategoryName.trim() })
+            .eq('id', editingSubcategoryId);
+
+        if (error) {
+            setNotice({ type: 'error', message: `แก้ไขไม่สำเร็จ: ${error.message}` });
+            fetchMasterData();
+        } else {
+            setNotice({ type: 'success', message: '✅ แก้ไขชื่อหมวดหมู่ย่อยเรียบร้อย' });
+        }
+
+        setEditingSubcategoryId(null);
+    };
+
+    // ย้ายลำดับหมวดหมู่ย่อย
+    const handleMoveSubcategory = async (subcategoryId: string, categoryId: string, direction: 'up' | 'down') => {
+        const subsInCategory = subcategories
+            .filter(s => s.category_id === categoryId)
+            .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+
+        const currentIndex = subsInCategory.findIndex(s => s.id === subcategoryId);
+        if (currentIndex === -1) return;
+
+        const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+        if (targetIndex < 0 || targetIndex >= subsInCategory.length) return;
+
+        // Swap locally
+        const newSubs = [...subsInCategory];
+        [newSubs[currentIndex], newSubs[targetIndex]] = [newSubs[targetIndex], newSubs[currentIndex]];
+
+        // Update state optimistically
+        const otherSubs = subcategories.filter(s => s.category_id !== categoryId);
+        const updatedSubs = newSubs.map((sub, idx) => ({ ...sub, sort_order: idx + 1 }));
+        setSubcategories([...otherSubs, ...updatedSubs]);
+
+        // Update database
+        for (const sub of updatedSubs) {
+            await supabase.from('master_subcategories').update({ sort_order: sub.sort_order }).eq('id', sub.id);
+        }
+
+        setNotice({ type: 'success', message: '✅ จัดลำดับเรียบร้อย' });
     };
 
     const filteredBranches = useMemo(() => {
@@ -426,9 +506,19 @@ export default function SettingsPage() {
 
     return (
         <div className="p-4 lg:p-6 max-w-5xl mx-auto font-sans min-h-screen bg-gray-50/50">
-            <h1 className="text-2xl font-black mb-4 flex items-center gap-2 text-slate-800">
-                <Settings className="text-blue-600" /> ตั้งค่าระบบ
-            </h1>
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+                <h1 className="text-2xl font-black flex items-center gap-2 text-slate-800">
+                    <Settings className="text-blue-600" /> ตั้งค่าระบบ
+                </h1>
+                <div className="flex gap-2">
+                    <a href="/" className="px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition flex items-center gap-2">
+                        🏠 หน้าร้าน
+                    </a>
+                    <a href="/admin" className="px-4 py-2 bg-red-100 text-red-700 font-bold rounded-xl hover:bg-red-200 transition flex items-center gap-2">
+                        🔧 Admin Tools
+                    </a>
+                </div>
+            </div>
 
             {notice && (
                 <div
@@ -1028,21 +1118,85 @@ export default function SettingsPage() {
                                             </span>
                                         </button>
                                         {/* Collapsible content */}
-                                        {isExpanded && (
-                                            <div className="divide-y bg-white">
-                                                {subs.map(sub => (
-                                                    <div key={sub.id} className="flex justify-between items-center p-3 hover:bg-gray-50">
-                                                        <span className="text-gray-700 pl-6">{sub.name}</span>
-                                                        <button
-                                                            onClick={() => handleDeleteSubcategory(sub.id)}
-                                                            className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg"
-                                                        >
-                                                            <Trash2 size={16} />
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
+                                        {isExpanded && (() => {
+                                            const sortedSubs = [...subs].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+                                            return (
+                                                <div className="divide-y bg-white">
+                                                    {sortedSubs.map((sub, idx) => (
+                                                        <div key={sub.id} className="flex justify-between items-center p-3 hover:bg-gray-50">
+                                                            <div className="flex items-center gap-2 flex-1 min-w-0 pl-6">
+                                                                {editingSubcategoryId === sub.id ? (
+                                                                    <div className="flex items-center gap-2 flex-1">
+                                                                        <input
+                                                                            type="text"
+                                                                            value={editingSubcategoryName}
+                                                                            onChange={(e) => setEditingSubcategoryName(e.target.value)}
+                                                                            className="flex-1 border-2 border-purple-400 rounded-lg px-3 py-1 text-gray-700 focus:outline-none"
+                                                                            autoFocus
+                                                                            onKeyDown={(e) => {
+                                                                                if (e.key === 'Enter') handleSaveSubcategoryName();
+                                                                                if (e.key === 'Escape') setEditingSubcategoryId(null);
+                                                                            }}
+                                                                        />
+                                                                        <button
+                                                                            onClick={handleSaveSubcategoryName}
+                                                                            className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200"
+                                                                        >
+                                                                            <Check size={16} />
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => setEditingSubcategoryId(null)}
+                                                                            className="p-2 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200"
+                                                                        >
+                                                                            <X size={16} />
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-gray-700 truncate">{sub.name}</span>
+                                                                )}
+                                                            </div>
+                                                            {editingSubcategoryId !== sub.id && (
+                                                                <div className="flex items-center gap-1">
+                                                                    {/* Move up/down buttons */}
+                                                                    <button
+                                                                        onClick={() => handleMoveSubcategory(sub.id, cat.id, 'up')}
+                                                                        disabled={idx === 0}
+                                                                        className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
+                                                                        title="เลื่อนขึ้น"
+                                                                    >
+                                                                        <ChevronUp size={16} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleMoveSubcategory(sub.id, cat.id, 'down')}
+                                                                        disabled={idx === sortedSubs.length - 1}
+                                                                        className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
+                                                                        title="เลื่อนลง"
+                                                                    >
+                                                                        <ChevronDown size={16} />
+                                                                    </button>
+                                                                    {/* Edit button */}
+                                                                    <button
+                                                                        onClick={() => handleStartEditSubcategory(sub.id, sub.name)}
+                                                                        className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg"
+                                                                        title="แก้ไขชื่อ"
+                                                                    >
+                                                                        <Pencil size={16} />
+                                                                    </button>
+                                                                    {/* Delete button */}
+                                                                    <button
+                                                                        onClick={() => handleDeleteSubcategory(sub.id)}
+                                                                        className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg"
+                                                                        title="ลบ"
+                                                                    >
+                                                                        <Trash2 size={16} />
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 );
                             })}

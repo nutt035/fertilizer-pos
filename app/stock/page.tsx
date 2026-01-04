@@ -157,8 +157,8 @@ export default function StockPage() {
     }, [isProductModalOpen, isStockInModalOpen, isSplitModalOpen, isRecipeModalOpen, isBarcodeModalOpen]);
 
     const fetchMasterData = async () => {
-        const { data: cats } = await supabase.from('master_categories').select('*').order('name');
-        const { data: subs } = await supabase.from('master_subcategories').select('*').order('name');
+        const { data: cats } = await supabase.from('master_categories').select('*').order('sort_order');
+        const { data: subs } = await supabase.from('master_subcategories').select('*').order('sort_order');
         const { data: uns } = await supabase.from('master_units').select('*').order('name');
         setCategories(cats || []);
         setSubcategories(subs || []);
@@ -461,10 +461,16 @@ export default function StockPage() {
     };
 
     const handleDelete = async (id: string) => {
-        if (confirm('ยืนยันที่จะลบสินค้านี้?')) {
+        const product = products.find(p => p.id === id);
+        const productName = product?.name || 'สินค้านี้';
+
+        if (confirm(`⚠️ ยืนยันลบ "${productName}" ?\n\nสินค้าจะถูกซ่อนและไม่แสดงในรายการสินค้า`)) {
             const { error } = await supabase.from('products').update({ is_active: false }).eq('id', id);
             if (error) toast.error('ลบไม่ได้: ' + error.message);
-            else fetchProducts();
+            else {
+                toast.success(`ลบ "${productName}" เรียบร้อย`);
+                fetchProducts();
+            }
             focusScan();
         }
     };
