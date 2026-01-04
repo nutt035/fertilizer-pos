@@ -597,8 +597,8 @@ export default function POSPage() {
             </div>
           )}
           <div className="flex justify-between items-end mb-2 lg:mb-4">
-            <span className="text-gray-800 text-lg lg:text-xl font-bold">ยอดสุทธิ</span>
-            <span className="text-3xl lg:text-5xl font-bold text-blue-700">฿{totalAmount.toLocaleString()}</span>
+            <span className="text-gray-800 text-xl lg:text-2xl font-bold">ยอดสุทธิ</span>
+            <span className="text-4xl lg:text-6xl font-black text-blue-700 grand-total">฿{totalAmount.toLocaleString()}</span>
           </div>
           <div className="grid grid-cols-5 gap-2 lg:gap-3 mb-2 lg:mb-3">
             <button
@@ -649,12 +649,12 @@ export default function POSPage() {
           <button
             onClick={() => { setIsPaymentModalOpen(true); }}
             disabled={cart.length === 0}
-            className={`w-full flex items-center justify-center gap-2 py-3 lg:py-5 rounded-xl text-2xl lg:text-3xl font-bold text-white transition shadow-lg ${cart.length === 0
+            className={`w-full flex items-center justify-center gap-3 py-5 lg:py-7 rounded-2xl text-3xl lg:text-4xl font-black text-white transition shadow-lg ${cart.length === 0
               ? 'bg-gray-400 cursor-not-allowed'
               : 'bg-green-600 hover:bg-green-700 hover:scale-105 active:scale-95'
               }`}
           >
-            <Banknote size={28} className="lg:w-9 lg:h-9" /> รับเงิน (F9)
+            <Banknote size={36} className="lg:w-12 lg:h-12" /> รับเงิน (F9)
           </button>
         </div>
       </div>

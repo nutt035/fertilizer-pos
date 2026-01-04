@@ -29,6 +29,125 @@ body {
 }
 
 /* ========================================
+   ELDERLY-FRIENDLY STYLES
+   ฟ้อนต์ใหญ่ ชัดเจน สำหรับผู้สูงอายุ
+   ======================================== */
+
+/* Base font size ใหญ่ขึ้น */
+html {
+  font-size: 18px;
+  /* เพิ่มจาก 16px เป็น 18px */
+}
+
+/* ปรับขนาด text ทั่วไป */
+.text-sm {
+  font-size: 1rem !important;
+}
+
+/* 18px แทน 14px */
+.text-base {
+  font-size: 1.125rem !important;
+}
+
+/* 20px แทน 16px */
+.text-lg {
+  font-size: 1.25rem !important;
+}
+
+/* 22px แทน 18px */
+.text-xl {
+  font-size: 1.5rem !important;
+}
+
+/* 27px แทน 20px */
+.text-2xl {
+  font-size: 1.75rem !important;
+}
+
+/* 32px แทน 24px */
+.text-3xl {
+  font-size: 2.25rem !important;
+}
+
+/* 40px แทน 30px */
+
+/* ปุ่มใหญ่ขึ้น กดง่าย */
+button,
+[role="button"],
+.btn {
+  min-height: 56px;
+  padding: 14px 20px;
+  font-size: 1.125rem;
+}
+
+/* Input fields ใหญ่ขึ้น */
+input,
+select,
+textarea {
+  font-size: 1.125rem !important;
+  padding: 14px 16px !important;
+  min-height: 52px;
+}
+
+/* Product cards ชื่อใหญ่ขึ้น */
+.product-card-name {
+  font-size: 1.25rem !important;
+  font-weight: bold !important;
+}
+
+/* ราคาใหญ่มาก ชัดเจน */
+.product-card-price {
+  font-size: 1.75rem !important;
+  font-weight: 900 !important;
+}
+
+/* สต็อกใหญ่ขึ้น */
+.stock-number {
+  font-size: 2rem !important;
+  font-weight: 900 !important;
+}
+
+/* Cart items ใหญ่ขึ้น */
+.cart-item-name {
+  font-size: 1.25rem !important;
+}
+
+.cart-item-price {
+  font-size: 1.5rem !important;
+  font-weight: bold !important;
+}
+
+/* Grand total ใหญ่มากๆ */
+.grand-total {
+  font-size: 3rem !important;
+  font-weight: 900 !important;
+}
+
+/* Category buttons ใหญ่ขึ้น */
+.category-btn {
+  font-size: 1.125rem !important;
+  padding: 14px 24px !important;
+  min-height: 52px;
+}
+
+/* Modal headers */
+.modal-header {
+  font-size: 1.5rem !important;
+}
+
+/* เพิ่ม contrast สี */
+.text-gray-400,
+.text-gray-500 {
+  color: #374151 !important;
+  /* เข้มขึ้น */
+}
+
+/* กำไรสีเขียวเข้ม */
+.profit-text {
+  color: #047857 !important;
+}
+
+/* ========================================
    MOBILE RESPONSIVE UTILITIES
    ======================================== */
 
