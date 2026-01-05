@@ -1,7 +1,7 @@
--- Function สำหรับยกเลิกบิลและคืนสต็อก
--- ลบ function เดิมถ้ามี แล้วสร้างใหม่
-
-DROP FUNCTION IF EXISTS void_order(UUID, UUID, TEXT);
+-- ===============================================
+-- FUNCTION: void_order
+-- ยกเลิกบิลและคืนสต็อกเข้าคลัง
+-- ===============================================
 
 CREATE OR REPLACE FUNCTION void_order(
     p_order_id UUID,
@@ -14,31 +14,36 @@ SECURITY DEFINER
 AS $$
 DECLARE
     v_order RECORD;
-    v_item RECORD;
-    v_restored_count INT := 0;
+    v_order_item RECORD;
+    v_branch_id UUID;  -- เปลี่ยนเป็น UUID
 BEGIN
-    -- 1) ดึง order และตรวจสอบสถานะ
-    SELECT * INTO v_order FROM orders WHERE id = p_order_id;
+    -- 1) ดึงข้อมูล order
+    SELECT * INTO v_order 
+    FROM orders 
+    WHERE id = p_order_id;
     
     IF NOT FOUND THEN
-        RETURN jsonb_build_object('success', false, 'message', 'ไม่พบบิลนี้');
+        RETURN jsonb_build_object('success', false, 'message', 'ไม่พบบิลที่ต้องการยกเลิก');
     END IF;
     
+    -- 2) ตรวจสอบสถานะ
     IF v_order.status = 'VOID' THEN
         RETURN jsonb_build_object('success', false, 'message', 'บิลนี้ถูกยกเลิกไปแล้ว');
     END IF;
     
-    -- 2) วนลูปคืนสต็อกทุก item ในบิล
-    FOR v_item IN 
-        SELECT * FROM order_items WHERE order_id = p_order_id
+    v_branch_id := v_order.branch_id;
+    
+    -- 3) คืนสต็อกจาก order_items
+    FOR v_order_item IN 
+        SELECT product_id, quantity FROM order_items WHERE order_id = p_order_id
     LOOP
-        -- คืนสต็อกใน inventory
+        -- คืนสต็อกเข้า inventory
         UPDATE inventory 
-        SET quantity = quantity + v_item.quantity
-        WHERE product_id = v_item.product_id 
-        AND branch_id = v_order.branch_id;
+        SET quantity = quantity + v_order_item.quantity
+        WHERE branch_id = v_branch_id 
+          AND product_id = v_order_item.product_id;
         
-        -- บันทึก inventory movement
+        -- บันทึก inventory_movements
         INSERT INTO inventory_movements (
             branch_id,
             product_id,
@@ -50,22 +55,20 @@ BEGIN
             ref_id
         )
         SELECT 
-            v_order.branch_id,
-            v_item.product_id,
-            'VOID_RETURN',
-            v_item.quantity,  -- จำนวนบวก (คืน)
-            inv.quantity,     -- balance หลังคืน
-            'ยกเลิกบิล ' || v_order.receipt_no || ': ' || p_reason,
+            v_branch_id,
+            v_order_item.product_id,
+            'VOID',
+            v_order_item.quantity,
+            inv.quantity,
+            'ยกเลิกบิล ' || v_order.receipt_no || ' - ' || p_reason,
             'ORDER_VOID',
-            p_order_id        -- ใช้ UUID โดยตรง ไม่ต้อง cast เป็น TEXT
+            p_order_id
         FROM inventory inv
-        WHERE inv.product_id = v_item.product_id 
-        AND inv.branch_id = v_order.branch_id;
-        
-        v_restored_count := v_restored_count + 1;
+        WHERE inv.branch_id = v_branch_id 
+          AND inv.product_id = v_order_item.product_id;
     END LOOP;
     
-    -- 3) อัปเดตสถานะ order เป็น VOID
+    -- 4) อัปเดตสถานะ order เป็น VOID
     UPDATE orders 
     SET 
         status = 'VOID',
@@ -77,19 +80,42 @@ BEGIN
     RETURN jsonb_build_object(
         'success', true, 
         'message', 'ยกเลิกบิลและคืนสต็อกเรียบร้อย',
-        'restored_items', v_restored_count
+        'receipt_no', v_order.receipt_no
     );
+    
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN jsonb_build_object('success', false, 'message', SQLERRM);
 END;
 $$;
 
+-- เพิ่ม columns ที่จำเป็นสำหรับ void (ถ้ายังไม่มี)
+DO $$
+BEGIN
+    -- void_reason column
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'orders' AND column_name = 'void_reason'
+    ) THEN
+        ALTER TABLE orders ADD COLUMN void_reason TEXT;
+    END IF;
+    
+    -- voided_at column
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'orders' AND column_name = 'voided_at'
+    ) THEN
+        ALTER TABLE orders ADD COLUMN voided_at TIMESTAMPTZ;
+    END IF;
+    
+    -- voided_by column
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'orders' AND column_name = 'voided_by'
+    ) THEN
+        ALTER TABLE orders ADD COLUMN voided_by UUID;
+    END IF;
+END $$;
+
 -- Grant execute permission
-GRANT EXECUTE ON FUNCTION void_order(UUID, UUID, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION void_order(UUID, UUID, TEXT) TO anon;
-
--- เพิ่ม columns สำหรับเก็บข้อมูลการ void
-ALTER TABLE orders 
-ADD COLUMN IF NOT EXISTS void_reason TEXT,
-ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS voided_by UUID;
-
-COMMENT ON FUNCTION void_order(UUID, UUID, TEXT) IS 'ยกเลิกบิลและคืนสต็อกอัตโนมัติ';
+GRANT EXECUTE ON FUNCTION void_order(UUID, UUID, TEXT) TO anon, authenticated;

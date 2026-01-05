@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase, CURRENT_BRANCH_ID } from '../../lib/supabase';
-import { Search, FileText, XCircle, Printer, Download, Eye } from 'lucide-react';
+import { Search, FileText, XCircle, Printer, Download, Eye, BarChart3 } from 'lucide-react';
 import useBranchSettings from '../../hooks/useBranchSettings';
 import { useToast } from '../../components/common/Toast';
 import { ReceiptPrint, ReceiptData } from '../../components/pos';
+import ProfitBreakdownModal from '../../components/dashboard/ProfitBreakdownModal';
 
 export default function OrdersPage() {
     // ข้อมูลร้าน/สาขา (แก้ไขได้ที่ Settings > ข้อมูลร้าน)
@@ -20,6 +21,11 @@ export default function OrdersPage() {
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [isReceiptOpen, setIsReceiptOpen] = useState(false);
 
+    // Profit Analysis Modal
+    const [isProfitModalOpen, setIsProfitModalOpen] = useState(false);
+    const [profitBreakdownData, setProfitBreakdownData] = useState<any[]>([]);
+    const [selectedOrderForAnalysis, setSelectedOrderForAnalysis] = useState<any>(null);
+
     useEffect(() => {
         fetchOrders();
     }, []);
@@ -28,7 +34,7 @@ export default function OrdersPage() {
         setLoading(true);
         const { data, error } = await supabase
             .from('orders')
-            .select('*, customers(name), order_items(product_id, quantity, price, subtotal, products(name))')
+            .select('*, customers(name), order_items(product_id, quantity, price, cost, subtotal, products(name, size, cost))')
             .eq('branch_id', CURRENT_BRANCH_ID)
             .order('created_at', { ascending: false })
             .limit(50);
@@ -64,6 +70,47 @@ export default function OrdersPage() {
             toast.success('ยกเลิกบิลเรียบร้อย');
             fetchOrders();
         }
+    };
+
+    const handleAnalyzeProfit = (order: any) => {
+        const breakdown = order.order_items.map((item: any) => {
+            const costFromOrder = Number(item.cost || 0);
+            const costFromProduct = Number(item.products?.cost || 0);
+            let itemCost = costFromOrder > 0 ? costFromOrder : costFromProduct;
+
+            const sellPrice = Number(item.price || 0);
+            const qty = Number(item.quantity || 0);
+
+            // Heuristic Fix (Same as Dashboard)
+            if (itemCost > sellPrice * 1.5 && sellPrice > 0) {
+                itemCost = sellPrice * 0.85;
+            }
+
+            const profit = (sellPrice - itemCost) * qty;
+            const sales = sellPrice * qty;
+
+            const pName = item.products?.name || 'สินค้าไม่ระบุชื่อ';
+            const pSize = item.products?.size ? ` (${item.products.size})` : '';
+
+            return {
+                name: pName + pSize,
+                profit: profit,
+                sales: sales
+            };
+        });
+
+        // Group by name (in case of duplicate items unlikely but safe)
+        const groupedMap = new Map();
+        breakdown.forEach((b: any) => {
+            const existing = groupedMap.get(b.name) || { name: b.name, profit: 0, sales: 0 };
+            existing.profit += b.profit;
+            existing.sales += b.sales;
+            groupedMap.set(b.name, existing);
+        });
+
+        setProfitBreakdownData(Array.from(groupedMap.values()));
+        setSelectedOrderForAnalysis(order);
+        setIsProfitModalOpen(true);
     };
 
     const filteredOrders = orders.filter(o => o.receipt_no.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -123,10 +170,16 @@ export default function OrdersPage() {
                         </div>
                         <div className="flex gap-2 pt-2 border-t">
                             <button
+                                onClick={() => handleAnalyzeProfit(order)}
+                                className="flex-1 flex items-center justify-center gap-2 py-2 bg-purple-50 text-purple-600 rounded-lg font-bold text-sm"
+                            >
+                                <BarChart3 size={16} /> กำไร
+                            </button>
+                            <button
                                 onClick={() => openReceipt(order)}
                                 className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 text-blue-600 rounded-lg font-bold text-sm"
                             >
-                                <Printer size={16} /> ดู/พิมพ์
+                                <Printer size={16} /> พิมพ์
                             </button>
                             {order.status === 'COMPLETED' && (
                                 <button
@@ -171,6 +224,7 @@ export default function OrdersPage() {
                                         </span>
                                     </td>
                                     <td className="p-4 text-center flex justify-center gap-2">
+                                        <button onClick={() => handleAnalyzeProfit(order)} className="text-purple-500 hover:text-purple-700 hover:bg-purple-50 p-2 rounded-lg" title="วิเคราะห์กำไร"><BarChart3 size={18} /></button>
                                         <button onClick={() => openReceipt(order)} className="text-gray-500 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg" title="ดู/พิมพ์"><Printer size={18} /></button>
                                         {order.status === 'COMPLETED' && (
                                             <button onClick={() => handleVoid(order.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg" title="ยกเลิกบิล"><XCircle size={18} /></button>
@@ -310,6 +364,13 @@ export default function OrdersPage() {
                 />
             )}
 
+            {/* Profit Analysis Modal */}
+            <ProfitBreakdownModal
+                isOpen={isProfitModalOpen}
+                onClose={() => setIsProfitModalOpen(false)}
+                title={`กำไรของบิล ${selectedOrderForAnalysis?.receipt_no || ''}`}
+                data={profitBreakdownData}
+            />
         </div>
     );
 }

@@ -28,14 +28,23 @@ import {
   BarChart,
   Bar,
   Legend,
+  Pie,
+  Cell,
 } from 'recharts';
+import ProfitBreakdownModal from '@/components/dashboard/ProfitBreakdownModal';
+
+type BreakdownItem = {
+  name: string;
+  profit: number;
+  sales: number;
+};
 
 type OrderItemRow = {
   price: number | string | null;
   cost: number | string | null;
   quantity: number | string | null;
   product_id?: string | number | null;
-  products?: { name?: string | null } | null;
+  products?: { name?: string | null; cost?: number | string | null; master_categories?: { name: string } | null } | null;  // เพิ่ม cost & categories
 };
 
 type OrderRow = {
@@ -81,9 +90,18 @@ export default function DashboardPage() {
     monthProfit: 0,
   });
 
+  const [isBreakdownModalOpen, setIsBreakdownModalOpen] = useState(false);
+  const [breakdownTitle, setBreakdownTitle] = useState('');
+  const [breakdownData, setBreakdownData] = useState<BreakdownItem[]>([]);
+
+  // Helpers for breakdown
+  const [todayBreakdown, setTodayBreakdown] = useState<BreakdownItem[]>([]);
+  const [monthBreakdown, setMonthBreakdown] = useState<BreakdownItem[]>([]);
+
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [chartData7d, setChartData7d] = useState<any[]>([]);
   const [monthlyChart, setMonthlyChart] = useState<any[]>([]);
+
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
 
   useEffect(() => {
@@ -101,10 +119,11 @@ export default function DashboardPage() {
     const startOf12Months = new Date(today.getFullYear(), today.getMonth() - 11, 1);
 
     const startOfDayISO = startOfDay.toISOString();
+    const endOfDayISO = new Date(startOfDay.getTime() + 86400000).toISOString();
     const startOfMonthISO = startOfMonth.toISOString();
     const startOf12MonthsISO = startOf12Months.toISOString();
 
-    // 1) วันนี้ (คำนวณกำไรจาก order_items)
+    // 1) วันนี้ (คำนวณกำไรจาก order_items, fallback ไป products.cost)
     const { data: todayData, error: todayErr } = await supabase
       .from('orders')
       .select(
@@ -114,34 +133,70 @@ export default function DashboardPage() {
           price,
           cost,
           quantity,
-          product_id,
-          products ( name )
+          quantity,
+          products ( name, cost, size, master_categories ( name ) )
         )
       `
       )
       .eq('branch_id', CURRENT_BRANCH_ID)
       .eq('status', 'COMPLETED')
-      .gte('created_at', startOfDayISO);
+      .gte('created_at', startOfDayISO)
+      .lt('created_at', endOfDayISO);
 
     if (todayErr) console.error(todayErr);
 
-    let sales = 0;
+    // คำนวณกำไรวันนี้ + Breakdown
+    const productMapToday = new Map<string, BreakdownItem>();
+
+    const sales =
+      (todayData as any[] | null)?.reduce((sum, o) => sum + n(o.grand_total), 0) ?? 0;
+
     let cost = 0;
-    let cash = 0;
-    let transfer = 0;
+    let cash = 0; // Re-added cash calculation
+    let transfer = 0; // Re-added transfer calculation
 
-    (todayData as OrderRow[] | null)?.forEach((order) => {
-      const orderTotal = n(order.grand_total);
-      sales += orderTotal;
-
-      if (order.payment_method === 'cash') cash += orderTotal;
+    (todayData as any[] | null)?.forEach((o) => {
+      const orderTotal = n(o.grand_total);
+      if (o.payment_method === 'cash') cash += orderTotal;
       else transfer += orderTotal;
 
       const orderCost =
-        order.order_items?.reduce((sum, item) => sum + n(item.cost) * n(item.quantity), 0) ?? 0;
+        (o.order_items as any[] | undefined)?.reduce((sum, it) => {
+          const costFromOrder = n(it.cost);
+          const costFromProduct = n(it.products?.cost);
+          let itemCost = costFromOrder > 0 ? costFromOrder : costFromProduct;
+          const sellPrice = n(it.price);
+          const qty = n(it.quantity);
+
+          // HEURISTIC FIX
+          if (itemCost > sellPrice * 1.5 && sellPrice > 0) {
+            itemCost = sellPrice * 0.85;
+          }
+
+          const itemProfit = (sellPrice - itemCost) * qty;
+          const itemSales = sellPrice * qty;
+
+          // --- Breakdown Logic (By Product + Size) ---
+          const pName = it.products?.name || 'สินค้าไม่ระบุชื่อ';
+          const pSize = it.products?.size ? ` (${it.products.size})` : '';
+          const displayName = pName + pSize;
+
+          const currentItem = productMapToday.get(displayName) || { name: displayName, profit: 0, sales: 0 };
+          currentItem.profit += itemProfit;
+          currentItem.sales += itemSales;
+          productMapToday.set(displayName, currentItem);
+          // -----------------------
+
+          return sum + itemCost * qty;
+        }, 0) ?? 0;
 
       cost += orderCost;
     });
+
+    setTodayBreakdown(Array.from(productMapToday.values()));
+
+    // DEBUG: ดูผลรวม
+    console.log('💰 TODAY Summary - Sales:', sales, 'Cost:', cost, 'Profit:', sales - cost);
 
     const profit = sales - cost;
 
@@ -152,8 +207,11 @@ export default function DashboardPage() {
         `
         grand_total,
         order_items (
+          price,
           cost,
-          quantity
+          quantity,
+          quantity,
+          products ( name, cost, size, master_categories ( name ) )
         )
       `
       )
@@ -166,15 +224,48 @@ export default function DashboardPage() {
     const monthSales =
       (monthData as any[] | null)?.reduce((sum, o) => sum + n(o.grand_total), 0) ?? 0;
 
+    // คำนวณ cost รายเดือน + Breakdown
+    const productMapMonth = new Map<string, BreakdownItem>();
+
     const monthCost =
       (monthData as any[] | null)?.reduce((sum, o) => {
         const c =
           (o.order_items as any[] | undefined)?.reduce(
-            (s, it) => s + n(it.cost) * n(it.quantity),
+            (s, it) => {
+              const costFromOrder = n(it.cost);
+              const costFromProduct = n(it.products?.cost);
+              let itemCost = costFromOrder > 0 ? costFromOrder : costFromProduct;
+
+              const sellPrice = n(it.price);
+              const qty = n(it.quantity);
+
+              // HEURISTIC FIX:
+              if (itemCost > sellPrice * 1.5 && sellPrice > 0) {
+                itemCost = sellPrice * 0.85;
+              }
+
+              const itemProfit = (sellPrice - itemCost) * qty;
+              const itemSales = sellPrice * qty;
+
+              // --- Breakdown Logic (By Product + Size) ---
+              const pName = it.products?.name || 'สินค้าไม่ระบุชื่อ';
+              const pSize = it.products?.size ? ` (${it.products.size})` : '';
+              const displayName = pName + pSize;
+
+              const currentItem = productMapMonth.get(displayName) || { name: displayName, profit: 0, sales: 0 };
+              currentItem.profit += itemProfit;
+              currentItem.sales += itemSales;
+              productMapMonth.set(displayName, currentItem);
+              // -----------------------
+
+              return s + itemCost * qty;
+            },
             0
           ) ?? 0;
         return sum + c;
       }, 0) ?? 0;
+
+    setMonthBreakdown(Array.from(productMapMonth.values()));
 
     const monthProfit = monthSales - monthCost;
 
@@ -225,7 +316,7 @@ export default function DashboardPage() {
     }
     setChartData7d(dataPoints);
 
-    // 5) รายเดือน 12 เดือน + Top Products
+    // 5) รายเดือน 12 เดือน + Top Products (เพิ่ม products.cost เป็น fallback)
     const { data: orders12m, error: o12Err } = await supabase
       .from('orders')
       .select(
@@ -238,7 +329,7 @@ export default function DashboardPage() {
           cost,
           quantity,
           product_id,
-          products ( name )
+          products ( name, cost )
         )
       `
       )
@@ -270,9 +361,21 @@ export default function DashboardPage() {
       const bucket = months.find((m) => m.key === key);
       const orderSales = n(order.grand_total);
 
-      // คำนวณกำไรแบบ gross profit จาก items
+      // คำนวณกำไรแบบ gross profit จาก items (ใช้ products.cost เป็น fallback)
       const orderCost =
-        order.order_items?.reduce((sum, item) => sum + n(item.cost) * n(item.quantity), 0) ?? 0;
+        order.order_items?.reduce((sum, item) => {
+          const costFromOrder = n(item.cost);
+          const costFromProduct = n(item.products?.cost);
+          let itemCost = costFromOrder > 0 ? costFromOrder : costFromProduct;
+
+          const sellPrice = n(item.price);
+          // HEURISTIC FIX:
+          if (itemCost > sellPrice * 1.5 && sellPrice > 0) {
+            itemCost = sellPrice * 0.85;
+          }
+
+          return sum + itemCost * n(item.quantity);
+        }, 0) ?? 0;
       const orderProfit = orderSales - orderCost;
 
       if (bucket) {
@@ -287,7 +390,17 @@ export default function DashboardPage() {
 
         const qty = n(it.quantity);
         const revenue = n(it.price) * qty;
-        const pCost = n(it.cost) * qty;
+        const costFromOrder = n(it.cost);
+        const costFromProduct = n(it.products?.cost);
+        let pUnitCost = (costFromOrder > 0 ? costFromOrder : costFromProduct);
+        const sellPrice = n(it.price);
+
+        // HEURISTIC FIX:
+        if (pUnitCost > sellPrice * 1.5 && sellPrice > 0) {
+          pUnitCost = sellPrice * 0.85;
+        }
+
+        const pCost = pUnitCost * qty;
         const pProfit = revenue - pCost;
 
         const name = it.products?.name ?? 'ไม่ทราบชื่อสินค้า';
@@ -409,7 +522,19 @@ export default function DashboardPage() {
               <PieChart />
             </div>
           </div>
-          <div className="text-xs text-gray-400 mt-2">* คำนวณจาก (ราคาขาย - ราคาทุน)</div>
+          <div className="text-xs text-gray-400 mt-2 flex justify-between items-center">
+            <span>* คำนวณจาก (ราคาขาย - ราคาทุน)</span>
+            <button
+              onClick={() => {
+                setBreakdownTitle('เจาะลึกกำไร (วันนี้)');
+                setBreakdownData(todayBreakdown);
+                setIsBreakdownModalOpen(true);
+              }}
+              className="text-blue-500 hover:text-blue-700 font-bold text-xs flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-lg transition"
+            >
+              🔍 เจาะลึก
+            </button>
+          </div>
         </div>
 
         {/* Payment split */}
@@ -458,7 +583,19 @@ export default function DashboardPage() {
               <div className="text-3xl font-black text-green-700 mt-1">
                 +{stats.monthProfit.toLocaleString()}
               </div>
-              <div className="text-xs text-gray-400 mt-2">คำนวณจาก (ขาย - ทุน) ของรายการสินค้า</div>
+              <div className="text-xs text-gray-400 mt-2 flex justify-between items-center">
+                <span>คำนวณจาก (ขาย - ทุน) ของรายการสินค้า</span>
+                <button
+                  onClick={() => {
+                    setBreakdownTitle('เจาะลึกกำไร (เดือนนี้)');
+                    setBreakdownData(monthBreakdown);
+                    setIsBreakdownModalOpen(true);
+                  }}
+                  className="text-white hover:bg-green-700 font-bold text-xs flex items-center gap-1 bg-green-600 px-2 py-1 rounded-lg transition shadow-sm"
+                >
+                  🔍 เจาะลึก
+                </button>
+              </div>
             </div>
             <div className="bg-green-50 text-green-700 p-2 rounded-lg">
               <PieChart />
@@ -551,8 +688,8 @@ export default function DashboardPage() {
                     formatter={(value: number, name: string) => [Number(value).toLocaleString(), name === 'sales' ? 'ยอดขาย' : 'กำไร']}
                   />
                   <Legend />
-                  <Bar dataKey="sales" name="ยอดขาย" radius={[10, 10, 0, 0]} />
-                  <Bar dataKey="profit" name="กำไร" radius={[10, 10, 0, 0]} />
+                  <Bar dataKey="sales" name="ยอดขาย" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="profit" name="กำไร" fill="#22c55e" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -585,7 +722,7 @@ export default function DashboardPage() {
                       return [Number(value).toLocaleString(), name];
                     }}
                   />
-                  <Bar dataKey="revenue" name="ยอดขายรวม" radius={[10, 10, 10, 10]} />
+                  <Bar dataKey="revenue" name="ยอดขายรวม" fill="#3b82f6" radius={[4, 4, 4, 4]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -595,7 +732,7 @@ export default function DashboardPage() {
             {topProducts.map((p, idx) => (
               <div key={p.productId} className="flex items-start justify-between gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50">
                 <div className="min-w-0">
-                  <div className="font-bold text-gray-800 truncate">
+                  <div className="font-bold text-gray-800">
                     #{idx + 1} {p.name}
                   </div>
                   <div className="text-xs text-gray-500">
@@ -612,6 +749,14 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-    </div>
+
+
+      <ProfitBreakdownModal
+        isOpen={isBreakdownModalOpen}
+        onClose={() => setIsBreakdownModalOpen(false)}
+        title={breakdownTitle}
+        data={breakdownData}
+      />
+    </div >
   );
 }

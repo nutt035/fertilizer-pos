@@ -357,14 +357,32 @@ export default function POSPage() {
         slipUrl = data.publicUrl;
       }
 
-      const itemsPayload = cart.map(item => ({
-        product_id: item.id,
-        qty: item.quantity,
-        price: item.price,
-        cost: item.cost || 0
-      }));
+      const itemsPayload = cart.map(item => {
+        // Calculate Net Price for DB (Price after Item Discount)
+        let finalPrice = item.price;
+        if (item.discountAmount && item.discountType) {
+          if (item.discountType === 'percent') {
+            finalPrice = item.price - (item.price * item.discountAmount / 100);
+          } else {
+            // Fixed discount is for the WHOLE line, so we divide by quantity to get per-unit discount
+            const quantity = item.quantity || 1;
+            finalPrice = item.price - (item.discountAmount / quantity);
+          }
+        }
 
-      const changeAmount = cashReceived - totalAmount;
+        // Prevent negative price
+        finalPrice = Math.max(0, finalPrice);
+
+        return {
+          product_id: item.id,
+          quantity: item.quantity,
+          price: finalPrice, // Send Net Price
+          cost: item.cost || 0,
+          note: item.note || ''
+        };
+      });
+
+      const changeAmount = cashReceived - totalAmount; // totalAmount คำนวณหักส่วนลดแล้วใน render
       const now = new Date();
 
       const { data, error } = await supabase.rpc('process_checkout', {
@@ -374,7 +392,8 @@ export default function POSPage() {
         p_cash_received: paymentMethod === 'cash' ? cashReceived : 0,
         p_change_amount: paymentMethod === 'cash' ? changeAmount : 0,
         p_slip_image: slipUrl,
-        p_items: itemsPayload
+        p_items: itemsPayload,
+        p_discount: billDiscountAmount // ส่งส่วนลดไป
       });
 
       if (error) throw new Error(error.message);
@@ -390,9 +409,11 @@ export default function POSPage() {
           description: item.description,  // รายละเอียดสินค้า
           quantity: item.quantity,
           price: item.price,
-          unit: item.unit
+          unit: item.unit,
+          note: item.note // เพิ่ม note ในใบเสร็จถ้าต้องการใช้
         })),
-        totalAmount: totalAmount,
+        totalAmount: totalAmount, // ยอดสุทธิ (Net Total)
+        discount: billDiscountAmount, // ส่วนลดท้ายบิล
         paymentMethod: paymentMethod,
         cashReceived: paymentMethod === 'cash' ? cashReceived : undefined,
         changeAmount: paymentMethod === 'cash' ? changeAmount : undefined,
@@ -494,6 +515,35 @@ export default function POSPage() {
     focusScan();
   };
 
+  // --- Discount Logic ---
+  const handleApplyDiscount = (amount: number, type: 'percent' | 'fixed') => {
+    if (discountTargetItem) {
+      // Apply to specific item
+      setCart(prev => prev.map(item => {
+        if (item.id === discountTargetItem.id) {
+          return {
+            ...item,
+            discountAmount: amount,
+            discountType: type
+          };
+        }
+        return item;
+      }));
+      setDiscountTargetItem(null);
+    } else {
+      // Apply to bill
+      setBillDiscount(amount);
+      setBillDiscountType(type);
+    }
+  };
+
+  const handleItemDiscount = (item: CartItem) => {
+    setDiscountTargetItem(item);
+    setIsDiscountModalOpen(true);
+  };
+
+
+
   const filteredProducts = products.filter((p) => {
     const matchSearch =
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -579,6 +629,7 @@ export default function POSPage() {
                 onStartEditNote={startEditingNote}
                 onSaveNote={saveNote}
                 onTempNoteChange={setTempNote}
+                onOpenDiscount={handleItemDiscount}
               />
             ))
           )}
@@ -768,23 +819,25 @@ export default function POSPage() {
       <DiscountModal
         isOpen={isDiscountModalOpen}
         onClose={() => { setIsDiscountModalOpen(false); focusScan(); }}
-        currentPrice={subtotal}
-        currentDiscount={billDiscount}
-        currentDiscountType={billDiscountType}
-        onApply={handleApplyBillDiscount}
+        currentPrice={discountTargetItem ? (discountTargetItem.price * discountTargetItem.quantity) : subtotal}
+        itemName={discountTargetItem?.name}
+        currentDiscount={discountTargetItem ? (discountTargetItem.discountAmount || 0) : billDiscount}
+        currentDiscountType={discountTargetItem ? (discountTargetItem.discountType || 'fixed') : billDiscountType}
+        onApply={handleApplyDiscount}
       />
 
       <SplitSellModal
         isOpen={isSplitSellModalOpen}
         onClose={() => { setIsSplitSellModalOpen(false); focusScan(); }}
         products={products}
-        onAddToCart={(product, quantity, customPrice, note) => {
+        onAddToCart={(product, quantity, customPrice, note, customCost) => {
           const fullProduct = products.find(p => p.id === product.id);
           if (fullProduct) {
             setCart(prev => [...prev, {
               ...fullProduct,
               quantity,
               price: customPrice,
+              cost: customCost || fullProduct.cost, // Use custom cost if provided
               note
             }]);
           }

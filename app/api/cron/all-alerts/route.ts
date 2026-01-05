@@ -78,7 +78,7 @@ async function getDailySummary(): Promise<string | null> {
 
     const { data: orders, error } = await supabase
         .from('orders')
-        .select('grand_total, payment_method, order_items(quantity, price, cost)')
+        .select('grand_total, payment_method, order_items(quantity, price, cost, products(cost))')
         .gte('created_at', startOfDay.toISOString())
         .eq('status', 'COMPLETED');
 
@@ -91,7 +91,19 @@ async function getDailySummary(): Promise<string | null> {
     let totalCost = 0;
     orders.forEach(order => {
         order.order_items?.forEach((item: any) => {
-            totalCost += (item.cost || 0) * (item.quantity || 0);
+            const costFromOrder = item.cost || 0;
+            const costFromProduct = item.products?.cost || 0;
+            let itemCost = costFromOrder > 0 ? costFromOrder : costFromProduct;
+
+            const sellPrice = item.price || 0;
+            const qty = item.quantity || 0;
+
+            // HEURISTIC FIX: Sync with Dashboard logic
+            if (itemCost > sellPrice * 1.5 && sellPrice > 0) {
+                itemCost = sellPrice * 0.85;
+            }
+
+            totalCost += itemCost * qty;
         });
     });
 

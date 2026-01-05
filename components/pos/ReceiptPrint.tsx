@@ -37,6 +37,7 @@ interface ReceiptData {
     shopTaxId?: string;
     receiptHeader?: string;  // ข้อความใต้ชื่อร้าน
     receiptFooter?: string;  // ข้อความด้านล่างใบเสร็จ
+    discount?: number;
 }
 
 interface ReceiptPrintProps {

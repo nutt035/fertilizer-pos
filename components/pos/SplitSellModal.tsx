@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Scissors, Package, ArrowLeft, Scale, Banknote, Check, X } from 'lucide-react';
+import { Scissors, Package, ArrowLeft, Scale, Banknote, Check, X, Search } from 'lucide-react';
 import Modal from '../common/Modal';
 import { supabase, CURRENT_BRANCH_ID } from '../../lib/supabase';
 import { useToast } from '../common/Toast';
@@ -13,17 +13,17 @@ interface Product {
     price: number;
     size?: string;
     unit?: string;
-    category?: string;  // หมวดหมู่
     stock: number;
     image_url?: string | null;
     remainder_kg?: number;
+    category?: string;  // เพิ่ม category
 }
 
 interface SplitSellModalProps {
     isOpen: boolean;
     onClose: () => void;
     products: Product[];
-    onAddToCart: (product: Product, quantity: number, customPrice: number, note: string) => void;
+    onAddToCart: (product: Product, quantity: number, customPrice: number, note: string, customCost: number) => void;
 }
 
 export default function SplitSellModal({ isOpen, onClose, products, onAddToCart }: SplitSellModalProps) {
@@ -32,18 +32,24 @@ export default function SplitSellModal({ isOpen, onClose, products, onAddToCart 
     const [weightKg, setWeightKg] = useState('');
     const [sellPrice, setSellPrice] = useState('');
     const [weightPerBag, setWeightPerBag] = useState(50);
-    const [searchTerm, setSearchTerm] = useState('');  // ค้นหาสินค้า
+    const [searchTerm, setSearchTerm] = useState('');  // เพิ่ม search
     const toast = useToast();
 
-    // แสดงเฉพาะสินค้าในหมวดหมู่ "ปุ๋ยกระสอบ"
-    const splittableProducts = products.filter(p =>
-        p.category && p.category.toLowerCase().includes('ปุ๋ยกระสอบ')
-    );
+    // Filter only products from 'ปุ๋ยกระสอบ' category with "กก" or "กระสอบ" in size/unit
+    const splittableProducts = products.filter(p => {
+        // 1. กรองหมวดหมู่ 'ปุ๋ยกระสอบ'
+        const isFertilizerBag = p.category?.includes('ปุ๋ยกระสอบ') ||
+            p.category?.includes('ปุ๋ย') ||
+            (p.size && (p.size.includes('กก') || p.size.includes('กระสอบ') || p.size.includes('ก.ก'))) ||
+            (p.unit && (p.unit.includes('กก') || p.unit.includes('กระสอบ') || p.unit.includes('ก.ก')));
 
-    // กรองตามชื่อสินค้า
-    const filteredProducts = splittableProducts.filter(p =>
-        searchTerm === '' || p.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+        // 2. กรองคำค้นหา
+        const matchSearch = searchTerm.trim() === '' ||
+            p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (p.size && p.size.toLowerCase().includes(searchTerm.toLowerCase()));
+
+        return isFertilizerBag && matchSearch;
+    });
 
     // Calculations
     const kg = Number(weightKg) || 0;
@@ -66,7 +72,7 @@ export default function SplitSellModal({ isOpen, onClose, products, onAddToCart 
             setSelectedProduct(null);
             setWeightKg('');
             setSellPrice('');
-            setSearchTerm('');  // ล้างค่าค้นหา
+            setSearchTerm('');  // รีเซ็ตคำค้นหา
         }
     }, [isOpen]);
 
@@ -129,7 +135,7 @@ export default function SplitSellModal({ isOpen, onClose, products, onAddToCart 
 
         // Add to cart with custom price
         const note = `แบ่งขาย ${kg} กก.`;
-        onAddToCart(selectedProduct, 1, price, note);
+        onAddToCart(selectedProduct, 1, price, note, totalCost);
 
         // Update stock in database - รวมทั้ง remainder_kg ด้วย
         const { error } = await supabase
@@ -232,14 +238,15 @@ export default function SplitSellModal({ isOpen, onClose, products, onAddToCart 
             {/* Step 1: Select Product - Visual Cards */}
             {step === 'select' && (
                 <div className="space-y-4">
-                    {/* ช่องค้นหา */}
+                    {/* Search Box */}
                     <div className="relative">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                         <input
                             type="text"
-                            placeholder="🔍 ค้นหาชื่อสินค้า..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full border-2 border-gray-200 p-4 rounded-xl text-xl focus:border-orange-400 focus:outline-none"
+                            placeholder="ค้นหาสินค้า..."
+                            className="w-full pl-12 pr-4 py-4 border-2 border-orange-200 rounded-xl text-lg focus:outline-none focus:border-orange-500"
                             autoFocus
                         />
                         {searchTerm && (
@@ -247,22 +254,24 @@ export default function SplitSellModal({ isOpen, onClose, products, onAddToCart 
                                 onClick={() => setSearchTerm('')}
                                 className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                             >
-                                <X size={24} />
+                                <X size={20} />
                             </button>
                         )}
                     </div>
 
-                    {filteredProducts.length === 0 ? (
+                    <div className="text-sm text-gray-500 mb-2">
+                        พบ {splittableProducts.length} รายการ (หมวดหมู่: ปุ๋ยกระสอบ)
+                    </div>
+
+                    {splittableProducts.length === 0 ? (
                         <div className="text-center py-12 text-gray-400">
                             <Package size={64} className="mx-auto mb-4 opacity-50" />
-                            <p className="text-xl">
-                                {searchTerm ? `ไม่พบ "${searchTerm}"` : 'ไม่พบสินค้าที่แบ่งขายได้'}
-                            </p>
+                            <p className="text-xl">ไม่พบสินค้าที่แบ่งขายได้</p>
                             <p className="text-base mt-2">สินค้าต้องมีขนาดเป็น "กก." หรือ "กระสอบ"</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 gap-3 max-h-[50vh] overflow-y-auto">
-                            {filteredProducts.map(product => (
+                        <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto">
+                            {splittableProducts.map(product => (
                                 <button
                                     key={product.id}
                                     onClick={() => handleSelectProduct(product)}
