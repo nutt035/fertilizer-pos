@@ -35,6 +35,11 @@ export interface CartItem extends Product {
   // Discount fields
   discountAmount?: number;
   discountType?: 'percent' | 'fixed' | null;
+  // Split sale fields (สำหรับการแบ่งขาย)
+  remainder_kg?: number;           // เศษที่เหลือจากการแบ่ง
+  skipStockDeduction?: boolean;    // บอก checkout ว่าตัดสต็อกไปแล้ว
+  splitKg?: number;                // จำนวน กก. ที่แบ่งขาย
+  originalProductId?: string;      // ID จริงของสินค้า (ใช้เมื่อ id ถูกเปลี่ยนเป็น splitId)
 }
 
 export interface Customer {

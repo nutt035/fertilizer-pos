@@ -19,11 +19,18 @@ interface Product {
     category?: string;  // เพิ่ม category
 }
 
+// Split info for cart
+interface SplitInfo {
+    skipStockDeduction: boolean;
+    splitId: string;
+    splitKg: number;
+}
+
 interface SplitSellModalProps {
     isOpen: boolean;
     onClose: () => void;
     products: Product[];
-    onAddToCart: (product: Product, quantity: number, customPrice: number, note: string, customCost: number) => void;
+    onAddToCart: (product: Product, quantity: number, customPrice: number, note: string, customCost: number, splitInfo?: SplitInfo) => void;
 }
 
 export default function SplitSellModal({ isOpen, onClose, products, onAddToCart }: SplitSellModalProps) {
@@ -133,9 +140,14 @@ export default function SplitSellModal({ isOpen, onClose, products, onAddToCart 
             return;
         }
 
-        // Add to cart with custom price
+        // Add to cart with split info
         const note = `แบ่งขาย ${kg} กก.`;
-        onAddToCart(selectedProduct, 1, price, note, totalCost);
+        const splitInfo: SplitInfo = {
+            skipStockDeduction: true,  // บอก checkout ว่าตัดสต็อกไปแล้ว
+            splitId: `${selectedProduct.id}_split_${Date.now()}`,  // ID พิเศษไม่ให้รวมกับ item ปกติ
+            splitKg: kg
+        };
+        onAddToCart(selectedProduct, 1, price, note, totalCost, splitInfo);
 
         // Update stock in database - รวมทั้ง remainder_kg ด้วย
         const { error } = await supabase

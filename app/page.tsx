@@ -374,11 +374,12 @@ export default function POSPage() {
         finalPrice = Math.max(0, finalPrice);
 
         return {
-          product_id: item.id,
+          product_id: item.originalProductId || item.id, // ใช้ ID จริงสำหรับ split item
           quantity: item.quantity,
           price: finalPrice, // Send Net Price
           cost: item.cost || 0,
-          note: item.note || ''
+          note: item.note || '',
+          skip_stock: item.skipStockDeduction || false // บอก checkout ว่าตัดสต็อกไปแล้ว
         };
       });
 
@@ -830,15 +831,19 @@ export default function POSPage() {
         isOpen={isSplitSellModalOpen}
         onClose={() => { setIsSplitSellModalOpen(false); focusScan(); }}
         products={products}
-        onAddToCart={(product, quantity, customPrice, note, customCost) => {
+        onAddToCart={(product, quantity, customPrice, note, customCost, splitInfo) => {
           const fullProduct = products.find(p => p.id === product.id);
           if (fullProduct) {
             setCart(prev => [...prev, {
               ...fullProduct,
+              id: splitInfo?.splitId || fullProduct.id, // ใช้ splitId ไม่ให้รวมกับ item ปกติ
               quantity,
               price: customPrice,
-              cost: customCost || fullProduct.cost, // Use custom cost if provided
-              note
+              cost: customCost || fullProduct.cost,
+              note,
+              skipStockDeduction: splitInfo?.skipStockDeduction || false,
+              splitKg: splitInfo?.splitKg,
+              originalProductId: fullProduct.id // เก็บ ID จริงสำหรับ checkout
             }]);
           }
           setIsSplitSellModalOpen(false);
