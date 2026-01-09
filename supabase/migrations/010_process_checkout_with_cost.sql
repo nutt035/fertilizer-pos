@@ -17,6 +17,7 @@ CREATE OR REPLACE FUNCTION process_checkout(
     p_items JSONB DEFAULT '[]'::JSONB,
     p_discount NUMERIC DEFAULT 0
 )
+
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
