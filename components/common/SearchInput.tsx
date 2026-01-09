@@ -26,7 +26,7 @@ export default function SearchInput({
             <input
                 type="text"
                 placeholder={placeholder}
-                className="w-full pl-10 pr-4 py-3 rounded-lg border focus:ring-2 focus:ring-blue-500 outline-none text-lg shadow-sm"
+                className="w-full pl-12 pr-4 py-3 rounded-lg border focus:ring-2 focus:ring-blue-500 outline-none text-lg shadow-sm"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 autoFocus={autoFocus}
